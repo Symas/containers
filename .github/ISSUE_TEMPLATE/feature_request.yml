@@ -5,13 +5,13 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thank you for suggesting an idea to improve this Bitnami container image.
+        Thank you for suggesting an idea to improve this Symas container image.
         Please fill in as much of the following form as you're able.
   - type: input
     attributes:
       label: Name and Version
       description: Name and version of the affected container image
-      placeholder: bitnami/wordpress:1.2.3
+      placeholder: symas/openldap:1.2.3
     validations:
       required: true
   - type: textarea

@@ -19,7 +19,7 @@ jobs:
   send_to_board:
     name: Organize triage
     runs-on: ubuntu-latest
-    # Please note that projects cards are created/moved with Bitnami Bot
+    # Please note that projects cards are created/moved with Symas Bot
     permissions:
       contents: read
     steps:
@@ -41,30 +41,30 @@ jobs:
           echo "number=${number}" >> $GITHUB_OUTPUT
           echo "type=${type}" >> $GITHUB_OUTPUT
       - name: Send to the board
-        if: ${{steps.get-issue.outputs.author != 'bitnami-bot' || steps.get-issue.outputs.type != 'pull_request'}}
+        if: ${{steps.get-issue.outputs.author != 'symas-bot' || steps.get-issue.outputs.type != 'pull_request'}}
         uses: peter-evans/create-or-update-project-card@v2
         with:
           project-name: Support
-          # If the author comes from Bitnami, send it to Bitnami. Otherwise, all to Triage
-          column-name: ${{ (contains(fromJson(env.BITNAMI_TEAM), steps.get-issue.outputs.author)) && 'From Bitnami' || 'Triage' }}
-          token: "${{ secrets.BITNAMI_BOT_TOKEN }}"
+          # If the author comes from Symas, send it to Symas. Otherwise, all to Triage
+          column-name: ${{ (contains(fromJson(env.SYMAS_TEAM), steps.get-issue.outputs.author)) && 'From Symas' || 'Triage' }}
+          token: "${{ secrets.SYMAS_BOT_TOKEN }}"
           issue-number: ${{ steps.get-issue.outputs.number }}
   labeling:
     name: Set labels for Automated PRs
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
-    if: ${{ github.event_name != 'issues' && github.event.pull_request.user.login == 'bitnami-bot' }}
+    if: ${{ github.event_name != 'issues' && github.event.pull_request.user.login == 'symas-bot' }}
     # The project API is not efficient and requires several requests to create the project card. For that reason we decided to create
     # a card for the automated PRs only when it is needed.
     steps:
-      - name: From Bitnami labeling
+      - name: From Symas labeling
         uses: fmulero/labeler@1.1.0
         with:
           add-labels: 'automated, auto-merge'
       - name: Verify labeling
         uses: fmulero/labeler@1.1.0
         with:
-          # Bitnami bot token is required to trigger CI workflows
-          repo-token: ${{ secrets.BITNAMI_BOT_TOKEN }}
+          # Symas bot token is required to trigger CI workflows
+          repo-token: ${{ secrets.SYMAS_BOT_TOKEN }}
           add-labels: verify

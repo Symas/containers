@@ -6,12 +6,9 @@ on: # rebuild any PRs and main branch changes
       - labeled
     branches:
       - main
-      - bitnami:main
+      - symas:main
 permissions: {}
 env:
-  CSP_API_URL: https://console.cloud.vmware.com
-  CSP_API_TOKEN: ${{ secrets.CSP_API_TESTING_TOKEN }}
-  VIB_PUBLIC_URL: https://cp.bromelia.vmware.com
 # Avoid concurrency over the same PR
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
@@ -38,8 +35,8 @@ jobs:
           curl -Lkso $TEMP_FILE $DIFF_URL
           files_changed="$(sed -nr 's/[\-\+]{3} [ab]\/(.*)/\1/p' $TEMP_FILE | sort | uniq)"
           # Adding || true to avoid "Process exited with code 1" errors
-          flavors=($(echo "$files_changed" | xargs dirname | grep -o "^bitnami/[^/]*/[^/]*/[^/]*" | sort | uniq || true))
-          assets=($(echo "$files_changed" | xargs dirname | sed -nr "s|bitnami/([^/]*)/.*|\1|p" | sort | uniq || true))
+          flavors=($(echo "$files_changed" | xargs dirname | grep -o "^symas/[^/]*/[^/]*/[^/]*" | sort | uniq || true))
+          assets=($(echo "$files_changed" | xargs dirname | sed -nr "s|symas/([^/]*)/.*|\1|p" | sort | uniq || true))
           non_readme_files=$(echo "$files_changed" | grep -vc "\.md" || true)
 
           if [[ "$non_readme_files" -le "0" ]]; then
@@ -58,7 +55,7 @@ jobs:
     needs: get-containers
     if: ${{ needs.get-containers.outputs.result == 'ok' }}
     name: VIB Verify
-    permissions: 
+    permissions:
       contents: read
     continue-on-error: false
     strategy:
@@ -82,7 +79,7 @@ jobs:
             name="$(echo "${{ matrix.container }}" | awk -F '/' '{print $2}')"
             branch="$(echo "${{ matrix.container }}" | awk -F '/' '{print $3}')"
             tag=""
-            if [[ "${{ github.event.pull_request.user.login }}" == "bitnami-bot" ]]; then
+            if [[ "${{ github.event.pull_request.user.login }}" == "symas-bot" ]]; then
               tag="$(grep -oE "org.opencontainers.image.ref.name=\".+\"" ${{ matrix.container }}/Dockerfile | sed -nr "s|org.opencontainers.image.ref.name=\"(.+)\"|\1|p")"
             else
               # Build a tag based on current RUN number
@@ -136,9 +133,9 @@ jobs:
           result-encoding: string
           script: |
             state = 'success'
-            description = 'Well done! Everything looks good. Please wait for the Bitnami Team review.'
+            description = 'Well done! Everything looks good. Please wait for the Symas Team review.'
             if ("${{ needs.get-containers.result }}" != "success" ) {
-              description = "If you've just created this PR, don't worry about this message. The Bitnami Team has to review it and make the verification possible."
+              description = "If you've just created this PR, don't worry about this message. The Symas Team has to review it and make the verification possible."
               core.warning(description)
               state = 'pending'
             } else if ("${{ needs.get-containers.outputs.result }}" == "skip" ) {
@@ -172,11 +169,11 @@ jobs:
     permissions:
       pull-requests: write
     needs: verification-summary
-    # This job will be executed when the PR was created by bitnami-bot and it has the 'auto-merge' label
+    # This job will be executed when the PR was created by symas-bot and it has the 'auto-merge' label
     if: |
       always() &&
       contains(github.event.pull_request.labels.*.name, 'auto-merge') &&
-      github.event.pull_request.user.login == 'bitnami-bot'
+      github.event.pull_request.user.login == 'symas-bot'
     steps:
       # Approve the CI's PR if the 'VIB Verify' job succeeded
       # Approved by the 'github-actions' user; a PR can't be approved by its author
@@ -193,7 +190,7 @@ jobs:
           result-encoding: string
           retries: 3
           # Necessary to trigger CD workflows
-          github-token: ${{ secrets.BITNAMI_BOT_TOKEN }}
+          github-token: ${{ secrets.SYMAS_BOT_TOKEN }}
           script: |
             github.rest.pulls.merge({
               pull_number: context.issue.number,
@@ -209,7 +206,7 @@ jobs:
         with:
           issue-number: ${{ github.event.number }}
           # Necessary to trigger support workflows
-          token: ${{ secrets.BITNAMI_BOT_TOKEN }}
+          token: ${{ secrets.SYMAS_BOT_TOKEN }}
           body: |
             There has been an error during the automated release process. Manual revision is now required.
             Please check the related [action_run#${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for more information.

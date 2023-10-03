@@ -16,12 +16,12 @@ jobs:
       contents: read
       pull-requests: read
     # This job will ignore:
-    # * Events triggered by bitnami-bot (README commits for example).
+    # * Events triggered by symas-bot (README commits for example).
     # * Events triggered over automated PRs (They are managed in comments.yml workflow).
-    # * PRs with 'bitnami' label.
+    # * PRs with 'symas' label.
     if: |
-      github.actor != 'bitnami-bot' && github.event.pull_request.user.login != 'bitnami-bot' &&
-      (!contains(github.event.pull_request.labels.*.name, 'bitnami')) && (!contains(github.event.pull_request.labels.*.name, 'triage'))
+      github.actor != 'symas-bot' && github.event.pull_request.user.login != 'symas-bot' &&
+      (!contains(github.event.pull_request.labels.*.name, 'symas')) && (!contains(github.event.pull_request.labels.*.name, 'triage'))
     steps:
       - name: Repo checkout
         uses: actions/checkout@v3
@@ -30,8 +30,8 @@ jobs:
         with:
           path: .github/workflows/
       - name: Move into In Progress
-        # Move the card only if the actor is not a Bitnami member
-        if: ${{ !contains(fromJson(env.BITNAMI_TEAM), github.actor) }}
+        # Move the card only if the actor is not a Symas member
+        if: ${{ !contains(fromJson(env.SYMAS_TEAM), github.actor) }}
         uses: peter-evans/create-or-update-project-card@v2
         with:
           project-name: Support

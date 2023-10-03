@@ -10,7 +10,7 @@ on:
       - synchronize
     branches:
       - main
-      - bitnami:main
+      - symas:main
 # Remove all permissions by default
 permissions: {}
 jobs:

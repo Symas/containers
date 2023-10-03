@@ -6,7 +6,7 @@ on:
   pull_request_target:
     types:
       - closed
-# Remove all permissions by default. Actions are performed by Bitnami Bot
+# Remove all permissions by default. Actions are performed by Symas Bot
 permissions: {}
 # Avoid concurrency over the same issue
 concurrency:
@@ -20,10 +20,10 @@ jobs:
         uses: peter-evans/create-or-update-project-card@v2
         # Send to solve only the issues and PRs created by users or the automated PRs with human review required
         if: |
-          (github.event.issue != null && github.event.issue.user.login != 'bitnami-bot') ||
-          (github.event.issue == null && (github.event.pull_request.user.login != 'bitnami-bot' || contains(github.event.pull_request.labels.*.name, 'review-required')))
+          (github.event.issue != null && github.event.issue.user.login != 'symas-bot') ||
+          (github.event.issue == null && (github.event.pull_request.user.login != 'symas-bot' || contains(github.event.pull_request.labels.*.name, 'review-required')))
         with:
           project-name: Support
           column-name: 'Solved'
-          token: "${{ secrets.BITNAMI_BOT_TOKEN }}"
+          token: "${{ secrets.SYMAS_BOT_TOKEN }}"
           issue-number: ${{ github.event_name != 'issues' && github.event.number || github.event.issue.number }}

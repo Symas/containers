@@ -64,21 +64,21 @@ jobs:
         with:
           add-labels: triage
           remove-labels: on-hold, in-progress, solved
-      - name: From Bitnami labeling
-        if: ${{ github.event.project_card.column_id == env.BITNAMI_COLUMN_ID }}
+      - name: From Symas labeling
+        if: ${{ github.event.project_card.column_id == env.SYMAS_COLUMN_ID }}
         uses: fmulero/labeler@1.1.0
         with:
-          add-labels: ${{ (needs.get-issue.outputs.author == 'bitnami-bot' && needs.get-issue.outputs.type == 'pull_request') && 'automated, auto-merge' || 'bitnami' }}
+          add-labels: ${{ (needs.get-issue.outputs.author == 'symas-bot' && needs.get-issue.outputs.type == 'pull_request') && 'automated, auto-merge' || 'symas' }}
           remove-labels: on-hold, in-progress, triage, solved
       - name: Verify labeling
-        # Only if moved into bitnami column and the PR is ready for review
+        # Only if moved into symas column and the PR is ready for review
         # Consecutive calls were fixed in fmulero/labeler@1.1.0, see https://github.com/fmulero/labeler/pull/2
         if: |
-          github.event.project_card.column_id == env.BITNAMI_COLUMN_ID &&
+          github.event.project_card.column_id == env.SYMAS_COLUMN_ID &&
           needs.get-issue.outputs.type == 'pull_request' && needs.get-issue.outputs.draft == 'false'
         uses: fmulero/labeler@1.1.0
         with:
-          repo-token: ${{ secrets.BITNAMI_BOT_TOKEN }}
+          repo-token: ${{ secrets.SYMAS_BOT_TOKEN }}
           add-labels: verify
       - name: Build Maintenance labeling
         if: ${{ github.event.project_card.column_id == env.BUILD_MAINTENANCE_COLUMN_ID }}
@@ -101,10 +101,10 @@ jobs:
           add-labels: in-progress
           remove-labels: on-hold, triage, solved
       - name: Solved labeling
-        # Only if moved into Solved and the issue author is not bitnami-bot
+        # Only if moved into Solved and the issue author is not symas-bot
         if: |
           github.event.project_card.column_id == env.SOLVED_COLUMN_ID &&
-          (needs.get-issue.outputs.author != 'bitnami-bot')
+          (needs.get-issue.outputs.author != 'symas-bot')
         uses: fmulero/labeler@1.1.0
         with:
           add-labels: solved
@@ -136,8 +136,8 @@ jobs:
         uses: pozil/auto-assign-issue@v1.11.0
         with:
           numOfAssignee: 1
-          teams: ${{ github.event.project_card.column_id == env.BITNAMI_COLUMN_ID && env.SUPPORT_TEAM_NAME || env.TRIAGE_TEAM_NAME }}
-          repo-token: ${{ secrets.BITNAMI_BOT_TOKEN }}
+          teams: ${{ github.event.project_card.column_id == env.SYMAS_COLUMN_ID && env.SUPPORT_TEAM_NAME || env.TRIAGE_TEAM_NAME }}
+          repo-token: ${{ secrets.SYMAS_BOT_TOKEN }}
           allowSelfAssign: false
       - name: Reassign when moved into 'In progress' from 'Triage'
         # Reassigned when moved into In progress FROM Triage
@@ -150,5 +150,5 @@ jobs:
           numOfAssignee: 1
           removePreviousAssignees: true
           teams: ${{ env.SUPPORT_TEAM_NAME }}
-          repo-token: ${{ secrets.BITNAMI_BOT_TOKEN }}
+          repo-token: ${{ secrets.SYMAS_BOT_TOKEN }}
           allowSelfAssign: false
