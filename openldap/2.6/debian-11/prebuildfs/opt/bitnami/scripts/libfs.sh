@@ -69,6 +69,22 @@ is_dir_empty() {
 }
 
 ########################
+# Checks whether all supplied directory paths are empty or not
+# arguments:
+#   $@ - array of directories
+# returns:
+#   boolean
+#########################
+are_dirs_empty() {
+    for dir in "$@"; do
+	if ! is_dir_empty "$dir" ; then
+	    false
+	fi
+    done
+    true
+}
+
+########################
 # Checks whether a mounted directory is empty or not
 # arguments:
 #   $1 - directory

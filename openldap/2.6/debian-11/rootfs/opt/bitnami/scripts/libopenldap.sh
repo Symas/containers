@@ -26,7 +26,8 @@
 ldap_env() {
     cat << "EOF"
 # Paths
-export LDAP_BASE_DIR="/opt/bitnami/openldap"
+export BASE_DIR="/opt/bitnami"
+export LDAP_BASE_DIR="${BASE_DIR}/openldap"
 export LDAP_BIN_DIR="${LDAP_BASE_DIR}/bin"
 export LDAP_SBIN_DIR="${LDAP_BASE_DIR}/sbin"
 export LDAP_CONF_DIR="${LDAP_BASE_DIR}/etc"
@@ -46,6 +47,7 @@ export LDAP_TLS_KEY_FILE="${LDAP_TLS_KEY_FILE:-}"
 export LDAP_TLS_CA_FILE="${LDAP_TLS_CA_FILE:-}"
 export LDAP_TLS_VERIFY_CLIENTS="${LDAP_TLS_VERIFY_CLIENTS:-never}"
 export LDAP_TLS_DH_PARAMS_FILE="${LDAP_TLS_DH_PARAMS_FILE:-}"
+export LDAP_ENTRYPOINT_INITDB_D_DIR="${LDAP_ENTRYPOINT_INITDB_D_DIR:-/docker-entrypoint-initdb.d}"
 # Users
 export LDAP_DAEMON_USER="slapd"
 export LDAP_DAEMON_GROUP="slapd"
@@ -114,6 +116,27 @@ unset ldap_env_vars
 export LDAP_ENCRYPTED_ADMIN_PASSWORD="$(echo -n $LDAP_ADMIN_PASSWORD | slappasswd -n -T /dev/stdin)"
 export LDAP_ENCRYPTED_CONFIG_ADMIN_PASSWORD="$(echo -n $LDAP_CONFIG_ADMIN_PASSWORD | slappasswd -n -T /dev/stdin)"
 export LDAP_ENCRYPTED_ACCESSLOG_ADMIN_PASSWORD="$(echo -n $LDAP_ACCESSLOG_ADMIN_PASSWORD | slappasswd -n -T /dev/stdin)"
+
+# Set of directories we should examine for ownership and permisssions
+ldap_expected_directories=(
+    LDAP_DATA_DIR
+    LDAP_ENTRYPOINT_INITDB_D_DIR
+    LDAP_ONLINE_CONF_DIR
+    LDAP_SHARE_DIR
+    LDAP_VAR_DIR
+)
+
+# Non-root users can't create domain sockets in /var/run, but they can in /tmp
+# The ldapi: URI scheme is defined in RFC 2255. Paths must be URL encoded,
+# so "/" becomes "%2F".  The absence of a path, a URI of "ldap:///" will
+# create the socket in /var/run (a symbolic link to /run).
+if am_i_root; then
+   ldapi_path="/"
+else
+   ldapi_path="%2Ftmp%2Fldapi"
+fi
+export LDAP_LDAPI_URI="ldapi://${ldapi_path}"
+
 EOF
 }
 
@@ -189,7 +212,7 @@ is_ldap_running() {
     if [[ -n "${pid}" ]]; then
         is_service_running "${pid}"
     else
-        false
+        return 1
     fi
 }
 
@@ -214,10 +237,11 @@ is_ldap_not_running() {
 ldap_start_bg() {
     local -r retries="${1:-12}"
     local -r sleep_time="${2:-1}"
-    local -a flags=("-h" "ldap://:${LDAP_PORT_NUMBER}/ ldapi:/// " "-F" "${LDAP_CONF_DIR}/slapd.d" "-d" "$LDAP_LOGLEVEL")
+    local -a flags=("-h" "ldap://:${LDAP_PORT_NUMBER}/ ${LDAP_LDAPI_URI} " "-F" "${LDAP_CONF_DIR}/slapd.d" "-d" "$LDAP_LOGLEVEL")
 
     if is_ldap_not_running; then
         info "Starting OpenLDAP server in background"
+	ensure_dir_exists $(dirname "$LDAP_PID_FILE") ${LDAP_DAEMON_USER} ${LDAP_DAEMON_GROUP}
         ulimit -n "$LDAP_ULIMIT_NOFILES"
         am_i_root && flags=("-u" "$LDAP_DAEMON_USER" "${flags[@]}")
         debug_execute slapd "${flags[@]}" &
@@ -242,9 +266,17 @@ ldap_stop() {
 
     are_db_files_locked() {
         local return_value=0
-        read -r -a db_files <<< "$(find "$LDAP_DATA_DIR" -type f -print0 | xargs -0)"
+        read -r -a db_files <<< "$(debug_execute find "$LDAP_DATA_DIR" -type f -print0 | xargs -0)"
         for f in "${db_files[@]}"; do
-            debug_execute fuser "$f" && return_value=1
+	    result=$(fuser "$f" 2>&1)
+	    pid=$(echo $result | cut -d ':' -f 2-)
+	    if [ -n "$pid" ]; then
+		if is_boolean_yes "${BITNAMI_DEBUG:-false}" ; then
+		    process=$(ps -p $"pid" -o comm=)
+		    warn "ldap_stop waiting on ${process} to close ${f} file"
+		fi
+		return_value=1
+	    fi
         done
         return "$return_value"
     }
@@ -257,6 +289,7 @@ ldap_stop() {
         return 1
     fi
 }
+
 ########################
 # Create slapd.ldif
 # Globals:
@@ -277,8 +310,19 @@ ldap_create_slapd_file() {
 dn: cn=config
 objectClass: olcGlobal
 cn: config
-olcArgsFile: /opt/bitnami/openldap/var/run/slapd.args
-olcPidFile: /opt/bitnami/openldap/var/run/slapd.pid
+olcArgsFile: ${LDAP_BASE_DIR}/var/run/slapd.args
+olcPidFile: ${LDAP_BASE_DIR}/var/run/slapd.pid
+
+#
+# Load dynamic backend modules commonly compiled in and available by default:
+#
+dn: cn=module,cn=config
+objectClass: olcModuleList
+cn: module
+olcModulePath: ${LDAP_BASE_DIR}/lib/openldap
+olcModuleLoad: back_mdb.la
+#olcModuleload: back_ldap.la
+#olcModuleload: back_passwd.la
 
 #
 # Schema settings
@@ -288,7 +332,7 @@ dn: cn=schema,cn=config
 objectClass: olcSchemaConfig
 cn: schema
 
-include: file:///opt/bitnami/openldap/etc/schema/core.ldif
+include: file://${LDAP_BASE_DIR}/etc/schema/core.ldif
 
 #
 # Frontend settings
@@ -320,7 +364,6 @@ olcAccess: to * by dn.base="gidNumber=0+uidNumber=0,cn=peercred,cn=external,cn=a
 #
 # Backend database definitions
 #
-
 dn: olcDatabase=mdb,cn=config
 objectClass: olcDatabaseConfig
 objectClass: olcMdbConfig
@@ -329,9 +372,10 @@ olcDbMaxSize: 1073741824
 olcSuffix: dc=my-domain,dc=com
 olcRootDN: cn=Manager,dc=my-domain,dc=com
 olcMonitoring: FALSE
-olcDbDirectory:	/bitnami/openldap/data
+olcDbDirectory: ${LDAP_DATA_DIR}
 olcDbIndex: objectClass eq,pres
 olcDbIndex: ou,cn,mail,surname,givenname eq,pres,sub
+
 EOF
 
 }
@@ -350,6 +394,7 @@ ldap_create_online_configuration() {
 
     ldap_create_slapd_file
     ! am_i_root && replace_in_file "${LDAP_SHARE_DIR}/slapd.ldif" "uidNumber=0" "uidNumber=$(id -u)"
+    ! am_i_root && replace_in_file "${LDAP_SHARE_DIR}/slapd.ldif" "gidNumber=0" "gidNumber=$(id -g)"
     local -a flags=(-F "$LDAP_ONLINE_CONF_DIR" -n 0 -l "${LDAP_SHARE_DIR}/slapd.ldif")
     if am_i_root; then
         debug_execute run_as_user "$LDAP_DAEMON_USER" slapadd "${flags[@]}"
@@ -373,17 +418,17 @@ ldap_admin_credentials() {
 dn: olcDatabase={2}mdb,cn=config
 changetype: modify
 replace: olcSuffix
-olcSuffix: $LDAP_ROOT
+olcSuffix: ${LDAP_ROOT}
 
 dn: olcDatabase={2}mdb,cn=config
 changetype: modify
 replace: olcRootDN
-olcRootDN: $LDAP_ADMIN_DN
+olcRootDN: ${LDAP_ADMIN_DN}
 
 dn: olcDatabase={2}mdb,cn=config
 changeType: modify
 add: olcRootPW
-olcRootPW: $LDAP_ENCRYPTED_ADMIN_PASSWORD
+olcRootPW: ${LDAP_ENCRYPTED_ADMIN_PASSWORD}
 
 dn: olcDatabase={1}monitor,cn=config
 changetype: modify
@@ -404,7 +449,7 @@ add: olcRootPW
 olcRootPW: $LDAP_ENCRYPTED_CONFIG_ADMIN_PASSWORD
 EOF
     fi
-    debug_execute ldapmodify -Y EXTERNAL -H "ldapi:///" -f "${LDAP_SHARE_DIR}/admin.ldif"
+    debug_execute ldapmodify -Y EXTERNAL -H "$LDAP_LDAPI_URI" -f "${LDAP_SHARE_DIR}/admin.ldif"
 }
 
 ########################
@@ -429,7 +474,7 @@ changetype: modify
 add: olcRequires
 olcRequires: authc
 EOF
-    debug_execute ldapmodify -Y EXTERNAL -H "ldapi:///" -f "${LDAP_SHARE_DIR}/disable_anon_bind.ldif"
+    debug_execute ldapmodify -Y EXTERNAL -H "$LDAP_LDAPI_URI" -f "${LDAP_SHARE_DIR}/disable_anon_bind.ldif"
 }
 
 ########################
@@ -445,7 +490,7 @@ ldap_add_schemas() {
     info "Adding LDAP extra schemas"
     read -r -a schemas <<< "$(tr ',;' ' ' <<< "${LDAP_EXTRA_SCHEMAS}")"
     for schema in "${schemas[@]}"; do
-        debug_execute ldapadd -Y EXTERNAL -H "ldapi:///" -f "${LDAP_CONF_DIR}/schema/${schema}.ldif"
+        debug_execute ldapadd -Y EXTERNAL -H "$LDAP_LDAPI_URI" -f "${LDAP_CONF_DIR}/schema/${schema}.ldif"
     done
 }
 
@@ -462,7 +507,7 @@ ldap_add_custom_schema() {
     info "Adding custom Schema : $LDAP_CUSTOM_SCHEMA_FILE ..."
     debug_execute slapadd -F "$LDAP_ONLINE_CONF_DIR" -n 0 -l  "$LDAP_CUSTOM_SCHEMA_FILE"
     ldap_stop
-     while is_ldap_running; do sleep 1; done
+    while is_ldap_running; do sleep 1; done
     ldap_start_bg
 }
 
@@ -477,7 +522,7 @@ ldap_add_custom_schema() {
 #########################
 ldap_add_custom_schemas() {
     info "Adding custom schemas : $LDAP_CUSTOM_SCHEMA_DIR ..."
-    find "$LDAP_CUSTOM_SCHEMA_DIR" -maxdepth 1 \( -type f -o -type l \) -iname '*.ldif' -print0 | sort -z | xargs --null -I{} bash -c ". /opt/bitnami/scripts/libos.sh && debug_execute slapadd -F \"$LDAP_ONLINE_CONF_DIR\" -n 0 -l {}"
+    find "$LDAP_CUSTOM_SCHEMA_DIR" -maxdepth 1 \( -type f -o -type l \) -iname '*.ldif' -print0 | sort -z | xargs --null -I{} bash -c ". ${BASE_DIR}/scripts/libos.sh && debug_execute slapadd -F \"$LDAP_ONLINE_CONF_DIR\" -n 0 -l {}"
     ldap_stop
     while is_ldap_running; do sleep 1; done
     ldap_start_bg
@@ -552,7 +597,7 @@ member: ${user/#/cn=},${LDAP_USER_DC/#/ou=},${LDAP_ROOT}
 EOF
     done
 
-    debug_execute ldapadd -f "${LDAP_SHARE_DIR}/tree.ldif" -H "ldapi:///" -D "$LDAP_ADMIN_DN" -w "$LDAP_ADMIN_PASSWORD"
+    debug_execute ldapadd -f "${LDAP_SHARE_DIR}/tree.ldif" -H "$LDAP_LDAPI_URI" -D "$LDAP_ADMIN_DN" -w "$LDAP_ADMIN_PASSWORD"
 }
 
 ########################
@@ -567,7 +612,7 @@ EOF
 ldap_add_custom_ldifs() {
     info "Loading custom LDIF files..."
     warn "Ignoring LDAP_USERS, LDAP_PASSWORDS, LDAP_USER_DC and LDAP_GROUP environment variables..."
-    find "$LDAP_CUSTOM_LDIF_DIR" -maxdepth 1 \( -type f -o -type l \) -iname '*.ldif' -print0 | sort -z | xargs --null -I{} bash -c ". /opt/bitnami/scripts/libos.sh && debug_execute ldapadd -f {} -H 'ldapi:///' -D \"$LDAP_ADMIN_DN\" -w \"$LDAP_ADMIN_PASSWORD\""
+    find "$LDAP_CUSTOM_LDIF_DIR" -maxdepth 1 \( -type f -o -type l \) -iname '*.ldif' -print0 | sort -z | xargs --null -I{} bash -c ". ${BASE_DIR}/scripts/libos.sh && debug_execute ldapadd -f {} -H '$LDAP_LDAPI_URI' -D \"$LDAP_ADMIN_DN\" -w \"$LDAP_ADMIN_PASSWORD\""
 }
 
 ########################
@@ -581,10 +626,24 @@ ldap_add_custom_ldifs() {
 #########################
 ldap_configure_permissions() {
   debug "Ensuring expected directories/files exist..."
-  for dir in "$LDAP_SHARE_DIR" "$LDAP_DATA_DIR" "$LDAP_ONLINE_CONF_DIR" "$LDAP_VAR_DIR"; do
-      ensure_dir_exists "$dir"
+  for expected in "${ldap_expected_directories[@]}"; do
+      path="$(printenv $expected)"
+      ensure_dir_exists "$path" ${LDAP_DAEMON_USER} ${LDAP_DAEMON_GROUP}
       if am_i_root; then
-          chown -R "$LDAP_DAEMON_USER:$LDAP_DAEMON_GROUP" "$dir"
+          chmod -R g+rwX "$path"
+          chown -R "$LDAP_DAEMON_USER:$LDAP_DAEMON_GROUP" "$path"
+	  info "Ensuring ${expected}=$path is $LDAP_DAEMON_USER:$LDAP_DAEMON_GROUP and 0775/drwxrwxr-x/g+rwX recursively"
+      else
+	  for item in $(find $path \! -type l); do
+	      owgr="$(stat -c "%U:%G" "$item")"
+	      if [[ "$owgr" != "$LDAP_DAEMON_USER:$LDAP_DAEMON_GROUP" ]]; then
+	          warn "${expected}=$item is $owgr rather than the expected $LDAP_DAEMON_USER:$LDAP_DAEMON_GROUP"
+              fi
+	      perms="$(stat "$item" | grep -oP "(?<=Access: \()[^)]*")"
+	      if [[ "$perms" != "0775/drwxrwxr-x" ]]; then
+	          warn "${expected}=$item has permissions $perms" # rather than the expected 0775/drwxrwxr-x/g+rwX
+              fi
+	  done
       fi
   done
 }
@@ -602,13 +661,16 @@ ldap_initialize() {
     info "Initializing OpenLDAP..."
 
     ldap_configure_permissions
-    if ! is_dir_empty "$LDAP_DATA_DIR"; then
-        info "Using persisted data"
-    else
+    if are_dirs_empty "${LDAP_DATA_DIR}" "${LDAP_ONLINE_CONF_DIR}"; then
+        info "Setting up ${LDAP_VOLUME_DIR}/{data,slapd.d} config and data."
+	ensure_dir_exists "${LDAP_ONLINE_CONF_DIR}" ${LDAP_DAEMON_USER} ${LDAP_DAEMON_GROUP}
+	ensure_dir_exists "${LDAP_DATA_DIR}" ${LDAP_DAEMON_USER} ${LDAP_DAEMON_GROUP}
+
         # Create OpenLDAP online configuration
         ldap_create_online_configuration
         ldap_start_bg
         ldap_admin_credentials
+	info "Setting up optional config..."
         if ! is_boolean_yes "$LDAP_ALLOW_ANON_BINDING"; then
             ldap_disable_anon_binding
         fi
@@ -654,7 +716,10 @@ ldap_initialize() {
         else
             info "Skipping default schemas/tree structure"
         fi
+        info "OpenLDAP configuration and databases are now configured for service."
         ldap_stop
+    else
+        info "Preserving existing config and data in ${LDAP_VOLUME_DIR}/{data,slapd.d}"
     fi
 }
 
@@ -668,9 +733,17 @@ ldap_initialize() {
 #   None
 #########################
 ldap_custom_init_scripts() {
-    if [[ -n $(find /docker-entrypoint-initdb.d/ -type f -regex ".*\.\(sh\)") ]] && [[ ! -f "$LDAP_DATA_DIR/.user_scripts_initialized" ]] ; then
-        info "Loading user's custom files from /docker-entrypoint-initdb.d";
-        for f in /docker-entrypoint-initdb.d/*; do
+    if [[ -f "${LDAP_VOLUME_DIR}/.user_scripts_initialized" ]]; then
+	info "Presence of file ${LDAP_VOLUME_DIR}/.user_scripts_initialized indicates that the user scripts have already been initialized."
+	return 0
+    fi
+    if is_dir_empty "${LDAP_ENTRYPOINT_INITDB_D_DIR}"; then
+        info "The user's custom files directory ${LDAP_ENTRYPOINT_INITDB_D_DIR} is missing or empty.";
+	return 0
+    fi
+    info "Loading user's custom files from ${LDAP_ENTRYPOINT_INITDB_D_DIR}";
+    if [[ -n $(find "${LDAP_ENTRYPOINT_INITDB_D_DIR}"/ -type f -regex ".*\.\(sh\)") ]]; then
+        for f in "${LDAP_ENTRYPOINT_INITDB_D_DIR}"/*; do
             debug "Executing $f"
             case "$f" in
                 *.sh)
@@ -689,7 +762,7 @@ ldap_custom_init_scripts() {
                     ;;
             esac
         done
-        touch "$LDAP_DATA_DIR"/.user_scripts_initialized
+        touch "${LDAP_VOLUME_DIR}"/.user_scripts_initialized
     fi
 }
 
@@ -726,7 +799,7 @@ replace: olcTLSDHParamFile
 olcTLSDHParamFile: $LDAP_TLS_DH_PARAMS_FILE
 EOF
     fi
-    debug_execute ldapmodify -Y EXTERNAL -H "ldapi:///" -f "${LDAP_SHARE_DIR}/certs.ldif"
+    debug_execute ldapmodify -Y EXTERNAL -H "$LDAP_LDAPI_URI" -f "${LDAP_SHARE_DIR}/certs.ldif"
 }
 
 ########################
@@ -746,7 +819,7 @@ changetype: modify
 add: olcSecurity
 olcSecurity: tls=1
 EOF
-    debug_execute ldapmodify -Y EXTERNAL -H "ldapi:///" -f "${LDAP_SHARE_DIR}/tls_required.ldif"
+    debug_execute ldapmodify -Y EXTERNAL -H "$LDAP_LDAPI_URI" -f "${LDAP_SHARE_DIR}/tls_required.ldif"
 }
 
 ########################
@@ -768,7 +841,16 @@ objectClass: olcModuleList
 olcModulePath: $1
 olcModuleLoad: $2
 EOF
-    debug_execute ldapadd -Y EXTERNAL -H "ldapi:///" -f "${LDAP_SHARE_DIR}/enable_module_$2.ldif"
+    if is_ldap_running; then
+	debug_execute ldapadd -Y EXTERNAL -H "$LDAP_LDAPI_URI" -f "${LDAP_SHARE_DIR}/enable_module_$2.ldif"
+    else
+        local -a flags=(-F "$LDAP_ONLINE_CONF_DIR" -n 0 -l "${LDAP_SHARE_DIR}/enable_module_$2.ldif")
+        if am_i_root; then
+            debug_execute run_as_user "$LDAP_DAEMON_USER" slapadd "${flags[@]}"
+        else
+            debug_execute slapadd "${flags[@]}"
+        fi
+    fi
 }
 
 ########################
@@ -782,7 +864,7 @@ EOF
 #########################
 ldap_configure_ppolicy() {
     info "Configuring LDAP ppolicy"
-    ldap_load_module "/opt/bitnami/openldap/lib/openldap" "ppolicy.so"
+    ldap_load_module "${LDAP_BASE_DIR}/lib/openldap" "ppolicy.so"
     # create configuration
     cat > "${LDAP_SHARE_DIR}/ppolicy_create_configuration.ldif" << EOF
 dn: olcOverlay={0}ppolicy,olcDatabase={2}mdb,cn=config
@@ -790,7 +872,7 @@ objectClass: olcOverlayConfig
 objectClass: olcPPolicyConfig
 olcOverlay: {0}ppolicy
 EOF
-    debug_execute ldapadd -Q -Y EXTERNAL -H "ldapi:///" -f "${LDAP_SHARE_DIR}/ppolicy_create_configuration.ldif"
+    debug_execute ldapadd -Q -Y EXTERNAL -H "$LDAP_LDAPI_URI" -f "${LDAP_SHARE_DIR}/ppolicy_create_configuration.ldif"
     # enable ppolicy_hash_cleartext
     if is_boolean_yes "$LDAP_PPOLICY_HASH_CLEARTEXT"; then
         info "Enabling ppolicy_hash_cleartext"
@@ -800,7 +882,7 @@ changetype: modify
 add: olcPPolicyHashCleartext
 olcPPolicyHashCleartext: TRUE
 EOF
-    debug_execute ldapmodify -Q -Y EXTERNAL -H "ldapi:///" -f "${LDAP_SHARE_DIR}/ppolicy_configuration_hash_cleartext.ldif"
+    debug_execute ldapmodify -Q -Y EXTERNAL -H "$LDAP_LDAPI_URI" -f "${LDAP_SHARE_DIR}/ppolicy_configuration_hash_cleartext.ldif"
     fi
     # enable ppolicy_use_lockout
     if is_boolean_yes "$LDAP_PPOLICY_USE_LOCKOUT"; then
@@ -811,7 +893,7 @@ changetype: modify
 add: olcPPolicyUseLockout
 olcPPolicyUseLockout: TRUE
 EOF
-        debug_execute ldapmodify -Q -Y EXTERNAL -H "ldapi:///" -f "${LDAP_SHARE_DIR}/ppolicy_configuration_use_lockout.ldif"
+        debug_execute ldapmodify -Q -Y EXTERNAL -H "$LDAP_LDAPI_URI" -f "${LDAP_SHARE_DIR}/ppolicy_configuration_use_lockout.ldif"
     fi
 }
 
@@ -832,7 +914,7 @@ changetype: modify
 add: olcPasswordHash
 olcPasswordHash: $LDAP_PASSWORD_HASH
 EOF
-    debug_execute ldapmodify -Y EXTERNAL -H "ldapi:///" -f "${LDAP_SHARE_DIR}/password_hash.ldif"
+    debug_execute ldapmodify -Y EXTERNAL -H "$LDAP_LDAPI_URI" -f "${LDAP_SHARE_DIR}/password_hash.ldif"
 }
 
 ########################
@@ -856,9 +938,9 @@ olcDbIndex: entryCSN eq
 add: olcDbIndex
 olcDbIndex: entryUUID eq
 EOF
-    debug_execute ldapmodify -Y EXTERNAL -H "ldapi:///" -f "${LDAP_SHARE_DIR}/accesslog_add_indexes.ldif"
+    debug_execute ldapmodify -Y EXTERNAL -H "$LDAP_LDAPI_URI" -f "${LDAP_SHARE_DIR}/accesslog_add_indexes.ldif"
     # Load module
-    ldap_load_module "/opt/bitnami/openldap/lib/openldap" "accesslog.so"
+    ldap_load_module "${LDAP_BASE_DIR}/lib/openldap" "accesslog.so"
     # Create AccessLog database
     cat > "${LDAP_SHARE_DIR}/accesslog_create_accesslog_database.ldif" << EOF
 dn: olcDatabase={3}mdb,cn=config
@@ -873,7 +955,7 @@ olcDbIndex: default eq
 olcDbIndex: entryCSN,objectClass,reqEnd,reqResult,reqStart
 EOF
     mkdir /bitnami/openldap/data/accesslog
-    debug_execute ldapadd -Q -Y EXTERNAL -H "ldapi:///" -f "${LDAP_SHARE_DIR}/accesslog_create_accesslog_database.ldif"
+    debug_execute ldapadd -Q -Y EXTERNAL -H "$LDAP_LDAPI_URI" -f "${LDAP_SHARE_DIR}/accesslog_create_accesslog_database.ldif"
     # Add AccessLog overlay
     cat > "${LDAP_SHARE_DIR}/accesslog_create_overlay_configuration.ldif" << EOF
 dn: olcOverlay=accesslog,olcDatabase={2}mdb,cn=config
@@ -888,7 +970,7 @@ olcAccessLogOld: $LDAP_ACCESSLOG_LOGOLD
 olcAccessLogOldAttr: $LDAP_ACCESSLOG_LOGOLDATTR
 EOF
     info "adding accesslog_create_overlay_configuration.ldif"
-    debug_execute ldapadd -Q -Y EXTERNAL -H "ldapi:///" -f "${LDAP_SHARE_DIR}/accesslog_create_overlay_configuration.ldif"
+    debug_execute ldapadd -Q -Y EXTERNAL -H "$LDAP_LDAPI_URI" -f "${LDAP_SHARE_DIR}/accesslog_create_overlay_configuration.ldif"
 }
 
 ########################
@@ -903,7 +985,7 @@ EOF
 ldap_enable_syncprov() {
     info "Configure Sync Provider"
     # Load module
-    ldap_load_module "/opt/bitnami/openldap/lib/openldap" "syncprov.so"
+    ldap_load_module "${LDAP_BASE_DIR}/lib/openldap" "syncprov.so"
     # Add Sync Provider overlay
     cat > "${LDAP_SHARE_DIR}/syncprov_create_overlay_configuration.ldif" << EOF
 dn: olcOverlay=syncprov,olcDatabase={2}mdb,cn=config
@@ -913,5 +995,19 @@ olcOverlay: syncprov
 olcSpCheckpoint: $LDAP_SYNCPROV_CHECKPPOINT
 olcSpSessionLog: $LDAP_SYNCPROV_SESSIONLOG
 EOF
-    debug_execute ldapadd -Q -Y EXTERNAL -H "ldapi:///" -f "${LDAP_SHARE_DIR}/syncprov_create_overlay_configuration.ldif"
+    debug_execute ldapadd -Q -Y EXTERNAL -H "$LDAP_LDAPI_URI" -f "${LDAP_SHARE_DIR}/syncprov_create_overlay_configuration.ldif"
+}
+
+########################
+# Has we successfully finished setup before?
+# Globals:
+#   LDAP_*
+# Arguments:
+#   None
+# Returns:
+#   true/false
+#########################
+is_ldap_setup() {
+    [[ -f "$LDAP_VOLUME_DIR/.ldap_setup_complete" ]] && return
+    return 1
 }

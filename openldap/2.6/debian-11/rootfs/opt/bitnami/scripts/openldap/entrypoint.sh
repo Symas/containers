@@ -11,10 +11,13 @@ set -o pipefail
 # Load libraries
 . /opt/bitnami/scripts/liblog.sh
 
+setup_failure() {
+    info "** LDAP setup incomplete, unable to start service. **"
+}
+
 if [[ "$1" = "/opt/bitnami/scripts/openldap/run.sh" ]]; then
-    info "** Starting LDAP setup **"
+    trap "setup_failure" EXIT
     /opt/bitnami/scripts/openldap/setup.sh
-    info "** LDAP setup finished! **"
 fi
 
 echo ""

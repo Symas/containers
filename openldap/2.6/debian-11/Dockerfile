@@ -1,4 +1,5 @@
-# Copyright VMware, Inc.
+# Copyright VMware, Inc. 2003
+# Copyright Symas Corp. 2003
 # SPDX-License-Identifier: APACHE-2.0
 
 FROM docker.io/bitnami/minideb:bullseye
@@ -47,7 +48,12 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 #       rm -rf "${COMPONENT}".tar.gz{,.sha256} ; \
 #     done
 
-RUN install_packages ca-certificates curl gnupg libargon2-1 libcap2-bin libcom-err2 libcrypt1 libgssapi-krb5-2 libk5crypto3 libkeyutils1 libkrb5-3 libkrb5support0 libltdl7 libnsl2 libnss3-tools libodbc1 libperl5.32 libsasl2-2 libssl1.1 libtirpc3 libwrap0 mdbtools procps psmisc
+# This also happends in Bitnami's setup.sh script, but only when it's
+# run as root.
+RUN groupadd --gid 1001 ${LDAP_DAEMON_GROUP:-slapd}
+RUN useradd --system --gid 1001 --uid 1001 --groups root ${LDAP_DAEMON_USER:-slapd}
+
+RUN install_packages ca-certificates curl gnupg libcap2-bin libcom-err2 libcrypt1 libkeyutils1 libltdl7 libnsl2 libnss3-tools libodbc1 libperl5.32 libtirpc3 libwrap0 mdbtools procps psmisc direnv nvi file
 
 # Configure the Symas Debian package repositories.
 RUN curl -fsSL https://repo.symas.com/configs/SOLDAP/d10/release26.list -o /etc/apt/sources.list.d/soldap-release26.list \

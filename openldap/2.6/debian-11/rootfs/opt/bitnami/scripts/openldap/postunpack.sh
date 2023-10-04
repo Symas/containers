@@ -11,15 +11,17 @@ set -o pipefail
 # Load libraries
 . /opt/bitnami/scripts/libfs.sh
 . /opt/bitnami/scripts/liblog.sh
+. /opt/symas/scripts/bitnami-poser.sh
 . /opt/bitnami/scripts/libopenldap.sh
 
 # Load LDAP environment variables
 eval "$(ldap_env)"
 
 # Ensure non-root user has write permissions on a set of directories
-for dir in "$LDAP_SHARE_DIR" "$LDAP_DATA_DIR" "$LDAP_ONLINE_CONF_DIR" "${LDAP_VAR_DIR}" "/docker-entrypoint-initdb.d"; do
+for dir in "$LDAP_SHARE_DIR" "$LDAP_DATA_DIR" "$LDAP_ONLINE_CONF_DIR" "${LDAP_VAR_DIR}" "${LDAP_VOLUME_DIR}" "/docker-entrypoint-initdb.d"; do
     ensure_dir_exists "$dir"
     chmod -R g+rwX "$dir"
+    chown "$LDAP_DAEMON_USER:$LDAP_DAEMON_GROUP" "$dir"
 done
 
 # Symlinks to normalize directories

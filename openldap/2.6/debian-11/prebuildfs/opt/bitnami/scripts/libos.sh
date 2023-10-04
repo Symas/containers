@@ -43,7 +43,7 @@ group_exists() {
 #   $1 - group
 # Flags:
 #   -i|--gid - the ID for the new group
-#   -s|--system - Whether to create new user as system user (uid <= 999)
+#   -s|--system - Whether to create new group as system group (gid <= 999)
 # Returns:
 #   None
 #########################
