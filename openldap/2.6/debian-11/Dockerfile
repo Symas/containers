@@ -53,7 +53,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN groupadd --gid 1001 ${LDAP_DAEMON_GROUP:-slapd}
 RUN useradd --system --gid 1001 --uid 1001 --groups root ${LDAP_DAEMON_USER:-slapd}
 
-RUN install_packages ca-certificates curl gnupg libcap2-bin libcom-err2 libcrypt1 libkeyutils1 libltdl7 libnsl2 libnss3-tools libodbc1 libperl5.32 libtirpc3 libwrap0 mdbtools procps psmisc direnv nvi file
+RUN install_packages ca-certificates curl gnupg libcap2-bin libcom-err2 libcrypt1 libkeyutils1 libltdl7 libnsl2 libnss3-tools libodbc1 libperl5.32 libtirpc3 libwrap0 mdbtools procps psmisc
 
 # Configure the Symas Debian package repositories.
 RUN curl -fsSL https://repo.symas.com/configs/SOLDAP/d10/release26.list -o /etc/apt/sources.list.d/soldap-release26.list \
