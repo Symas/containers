@@ -22,7 +22,7 @@ docker-compose up -d
 
 ## Supported tags and respective `Dockerfile` links
 
-Learn more about our tagging policy and the difference between rolling tags and immutable tags [in our documentation page](https://docs.bitnami.com/tutorials/understand-rolling-tags-containers/).
+Learn more about the tagging policy we've borrowed from Bitnami and the difference between rolling tags and immutable tags [in Bitnami's documentation page](https://docs.bitnami.com/tutorials/understand-rolling-tags-containers/).
 
 You can see the equivalence between the different tags by taking a look at the `tags-info.yaml` file present in the branch folder, i.e `symas/ASSET/BRANCH/DISTRO/tags-info.yaml`.
 
