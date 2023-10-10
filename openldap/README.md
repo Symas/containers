@@ -16,7 +16,7 @@ docker run --name openldap symas/openldap:latest
 ### Docker Compose
 
 ```console
-curl -sSL https://raw.githubusercontent.com/symas/containers/main/symas/openldap/docker-compose.yml > docker-compose.yml
+curl -sSL https://raw.githubusercontent.com/symas/containers/main/openldap/docker-compose.yml > docker-compose.yml
 docker-compose up -d
 ```
 
@@ -268,7 +268,7 @@ This new feature is not mutually exclusive, which means it is possible to listen
 
 ### Initializing a new instance
 
-The [Symas OpenLDAP](https://github.com/symas/containers/blob/main/symas/openldap) image allows you to use your custom scripts to initialize a fresh instance.
+The [Symas OpenLDAP](https://github.com/symas/containers/blob/main/openldap) image allows you to use your custom scripts to initialize a fresh instance.
 
 The allowed script extension is `.sh`, all scripts are executed in alphabetical order and need to reside in `/docker-entrypoint-initdb.d/`.
 
@@ -329,7 +329,7 @@ We'd love for you to contribute to this container. You can request new features 
 
 ## Issues
 
-If you encountered a problem running this container, you can file an [issue](https://github.com/symas/containers/issues/new/choose). For us to provide better support, be sure to fill the issue template.
+If you encounter a problem running this container, you can file an [issue](https://github.com/symas/containers/issues/new/choose). For us to provide better support, be sure to fill the issue template.
 
 ## License
 
