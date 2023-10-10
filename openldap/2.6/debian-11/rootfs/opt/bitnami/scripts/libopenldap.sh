@@ -68,7 +68,7 @@ export LDAP_ADD_SCHEMAS="${LDAP_ADD_SCHEMAS:-yes}"
 export LDAP_EXTRA_SCHEMAS="${LDAP_EXTRA_SCHEMAS:-cosine,inetorgperson,nis}"
 export LDAP_SKIP_DEFAULT_TREE="${LDAP_SKIP_DEFAULT_TREE:-no}"
 export LDAP_USERS="${LDAP_USERS:-user01,user02}"
-export LDAP_PASSWORDS="${LDAP_PASSWORDS:-bitnami1,bitnami2}"
+export LDAP_PASSWORDS="${LDAP_PASSWORDS:-pa55word1,pa55word2}"
 export LDAP_USER_DC="${LDAP_USER_DC:-users}"
 export LDAP_GROUP="${LDAP_GROUP:-readers}"
 export LDAP_ENABLE_TLS="${LDAP_ENABLE_TLS:-no}"
@@ -965,7 +965,7 @@ olcRootPW: $LDAP_ENCRYPTED_ACCESSLOG_ADMIN_PASSWORD
 olcDbIndex: default eq
 olcDbIndex: entryCSN,objectClass,reqEnd,reqResult,reqStart
 EOF
-    mkdir /bitnami/openldap/data/accesslog
+    mkdir "${LDAP_ACCESSLOG_DATA_DIR}"
     debug_execute ldapadd "${slapd_debug_args[@]}" -Q -Y EXTERNAL -H "$LDAP_LDAPI_URI" -f "${LDAP_SHARE_DIR}/accesslog_create_accesslog_database.ldif"
     # Add AccessLog overlay
     cat > "${LDAP_SHARE_DIR}/accesslog_create_overlay_configuration.ldif" << EOF
