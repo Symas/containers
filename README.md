@@ -1,4 +1,4 @@
-# Supported Containers for OpenLDAP, by Symas Corp.
+# Supported LXC Containers, by Symas Corp.
 
 ## What's here?
 
@@ -10,8 +10,8 @@
 
 * Symas has, for over a decade, built, maintained, and commercially supported
   the OpenLDAP codebase.
-* All our work on OpenLDAP has always been, and will always be open source.  We
-  are a [commercial support comany](mailto:support@symas.com), here if and when
+* All our work on OpenLDAP has always been, and will always be open-source.  We
+  are a [commercial support company](mailto:support@symas.com), here if and when
   you need us.
 * We commit to promptly publish new versions of this image using our automated
   systems for every release of the software going forward.
@@ -24,11 +24,8 @@
   a drop-in replacement for any existing use of the `bitnami/openldap`
   containers sharing the same version.
 * We base our images on Bitnami's [minideb](https://github.com/bitnami/minideb)
-  a minimalist Debian based container image that gives you a small base
+  a minimalist Debian-based container image that gives you a small base
   container image and the familiarity of a leading Linux distribution.
-* TODO: We sign our images [Docker Content Trust
-  (DCT)](https://docs.docker.com/engine/security/trust/content_trust/) and you
-  _should_ use `DOCKER_CONTENT_TRUST=1` to verify the integrity of the images.
 
 
 ## Why not just contribute to Bitnami?
@@ -53,9 +50,8 @@ OpenLDAP.
 
 ## Get an image
 
-The recommended way to get any of the Symas Container Images is to pull the
-prebuilt image from the [Docker Hub Registry](https://hub.docker.com/r/symas/)
-but we also publish to the [GitHub Container Regristry (ghcr)](https://ghcr.io).
+The recommended way to get any of the Symas LXC containers is to pull the
+prebuilt image from the [Docker Hub Registry](https://hub.docker.com/r/symas/).
 
 ```console
 docker pull symas/openldap

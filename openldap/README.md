@@ -1,4 +1,4 @@
-# OpenLDAP packaged by Symas
+# Supported Containers for OpenLDAP by Symas Corp.
 
 ## What is OpenLDAP?
 
@@ -20,13 +20,9 @@ curl -sSL https://raw.githubusercontent.com/symas/containers/main/symas/openldap
 docker-compose up -d
 ```
 
-## Why use a non-root container?
-
-Non-root container images add an extra layer of security and are generally recommended for production environments. However, because they run as a non-root user, privileged tasks are typically off-limits. Learn more about non-root containers [in our docs](https://docs.bitnami.com/tutorials/work-with-non-root-containers/).
-
 ## Supported tags and respective `Dockerfile` links
 
-Learn more about the Symas tagging policy and the difference between rolling tags and immutable tags [in our documentation page](https://docs.bitnami.com/tutorials/understand-rolling-tags-containers/).
+Learn more about our tagging policy and the difference between rolling tags and immutable tags [in our documentation page](https://docs.bitnami.com/tutorials/understand-rolling-tags-containers/).
 
 You can see the equivalence between the different tags by taking a look at the `tags-info.yaml` file present in the branch folder, i.e `symas/ASSET/BRANCH/DISTRO/tags-info.yaml`.
 
@@ -127,7 +123,7 @@ networks:
     driver: bridge
 services:
   openldap:
-    image: symas/openldap:2
+    image: symas/openldap:latest
     ports:
       - '1389:1389'
       - '1636:1636'
@@ -139,7 +135,7 @@ services:
     networks:
       - my-network
     volumes:
-      - 'openldap_data:/bitnami/openldap'
+      - 'openldap_data:/openldap'
   myapp:
     image: 'YOUR_APPLICATION_IMAGE'
     networks:
@@ -241,14 +237,14 @@ This new feature is not mutually exclusive, which means it is possible to listen
 
     ```console
     $ docker run --name openldap \
-        -v /path/to/certs:/opt/bitnami/openldap/certs \
-        -v /path/to/openldap-data-persistence:/bitnami/openldap/ \
+        -v /path/to/certs:/opt/symas/certs \
+        -v /path/to/openldap-data-persistence:/openldap/ \
         -e ALLOW_EMPTY_PASSWORD=yes \
         -e LDAP_ENABLE_TLS=yes \
-        -e LDAP_TLS_CERT_FILE=/opt/bitnami/openldap/certs/openldap.crt \
-        -e LDAP_TLS_KEY_FILE=/opt/bitnami/openldap/certs/openldap.key \
-        -e LDAP_TLS_CA_FILE=/opt/bitnami/openldap/certs/openldapCA.crt \
-        bitnami/openldap:latest
+        -e LDAP_TLS_CERT_FILE=/opt/symas/certs/openldap.crt \
+        -e LDAP_TLS_KEY_FILE=/opt/symas/certs/openldap.key \
+        -e LDAP_TLS_CA_FILE=/opt/symas/certs/openldapCA.crt \
+        symas/openldap:latest
     ```
 
 2. Modifying the `docker-compose.yml` file present in this repository:
@@ -260,13 +256,13 @@ This new feature is not mutually exclusive, which means it is possible to listen
         environment:
           ...
           - LDAP_ENABLE_TLS=yes
-          - LDAP_TLS_CERT_FILE=/opt/bitnami/openldap/certs/openldap.crt
-          - LDAP_TLS_KEY_FILE=/opt/bitnami/openldap/certs/openldap.key
-          - LDAP_TLS_CA_FILE=/opt/bitnami/openldap/certs/openldapCA.crt
+          - LDAP_TLS_CERT_FILE=/opt/symas/certs/openldap.crt
+          - LDAP_TLS_KEY_FILE=/opt/symas/certs/openldap.key
+          - LDAP_TLS_CA_FILE=/opt/symas/certs/openldapCA.crt
         ...
         volumes:
-          - /path/to/certs:/opt/bitnami/openldap/certs
-          - /path/to/openldap-data-persistence:/bitnami/openldap/
+          - /path/to/certs:/opt/symas/certs
+          - /path/to/openldap-data-persistence:/openldap/
       ...
     ```
 
@@ -288,7 +284,7 @@ docker logs openldap
 
 You can configure the containers [logging driver](https://docs.docker.com/engine/admin/logging/overview/) using the `--log-driver` option if you wish to consume the container logs differently. In the default configuration docker uses the `json-file` driver.
 
-To see the actual output of slapd in the container's logs, set the environment variable `BITNAMI_DEBUG=true`. Useful especially to find/debug problems in your configuration that lead to errors so OpenLDAP won't start.
+To see the actual output of the various commands used during setup as well as slapd in the container's logs, set the environment variable `SYMAS_DEBUG=true`. Useful especially to find/debug problems in your configuration that lead to errors causing OpenLDAP not to start.
 
 ## Maintenance
 
@@ -326,9 +322,6 @@ docker run --name openldap symas/openldap:latest
 
 ## Notable Changes
 
-### 2.4.58-debian-10-r93
-
-* The default database backend has been changed from `hdb` to `mdb` as recommended. No additional steps should be necessary at upgrade time; the new container version `2.4.59` will initialize using the persisted data.
 
 ## Contributing
 
