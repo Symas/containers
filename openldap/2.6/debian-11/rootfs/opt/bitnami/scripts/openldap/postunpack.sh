@@ -11,7 +11,7 @@ set -o pipefail
 # Load libraries
 . /opt/bitnami/scripts/libfs.sh
 . /opt/bitnami/scripts/liblog.sh
-. /opt/symas/scripts/bitnami-poser.sh
+. /opt/symas/scripts/adjustments.sh
 . /opt/bitnami/scripts/libopenldap.sh
 
 # Load LDAP environment variables
