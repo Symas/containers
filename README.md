@@ -22,9 +22,10 @@ Reach out to us, we're here to help.
 * All our work on OpenLDAP has always been, and will always be open-source.  We
   are a [commercial support company](mailto:support@symas.com), here if and when
   you need us.
-* We commit to promptly publish new versions of this image using our automated
-  systems for every release of the software going forward.
-* Our images contain the latest bug fixes and features released.
+* We commit to promptly publish new versions of this chart for every release of
+  the software going forward.
+* Our images contain the latest bug fixes and features released, not just in OpenLDAP
+  but in supporting libraries.
 * We've based our containers on the amazing [Bitnami
   containers](https://github.com/bitnami/containers/) existing work.
 * We'd like to thank them for open sourcing their work allowing the community to
@@ -40,7 +41,7 @@ Reach out to us, we're here to help.
 ## Why not just contribute to Bitnami?
 
 We may eventually merge our work into Bitnami, for now we'd like to remain agile
-enoug to build for platforms they don't (yet) support, like `arm64`, and to use
+enough to build for platforms they don't (yet) support, like `arm64`, and to use
 supporting libraries (e.g. SASL) we've built that include fixes and features not
 yet in their mainstream counterparts.
 
