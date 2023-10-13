@@ -2,7 +2,6 @@ with (import <nixpkgs> {});
 mkShell {
   buildInputs = [
     curl
-    docker
     git
     kubectl
     kind

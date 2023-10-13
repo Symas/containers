@@ -24,3 +24,4 @@ ln /opt/bitnami/openldap/lib/slapd /opt/bitnami/openldap/sbin/slapd
 
 # No need to include the following.
 rm -rf /opt/bitnami/openldap/share/{doc,man,symas}
+rm -f /opt/bitnami/openldap/etc/openldap/slapd.ldif.default

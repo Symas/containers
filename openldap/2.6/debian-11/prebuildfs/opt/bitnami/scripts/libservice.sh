@@ -34,7 +34,7 @@ get_pid_from_file() {
 # Arguments:
 #   $1 - PID
 # Returns:
-#   Boolean
+#   Boolean int, 0 - yes, 1 - no
 #########################
 is_service_running() {
     local pid="${1:?pid is missing}"

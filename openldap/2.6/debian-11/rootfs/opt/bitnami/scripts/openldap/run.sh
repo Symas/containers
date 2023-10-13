@@ -21,10 +21,12 @@ command="$(command -v slapd)"
 # https://github.com/docker/docker/issues/8231
 ulimit -n "$LDAP_ULIMIT_NOFILES"
 
-flags=("-h" "ldap://:${LDAP_PORT_NUMBER}/ ${LDAP_LDAPI_URI}")
-
-# Add LDAPS URI when TLS is enabled
-is_boolean_yes "$LDAP_ENABLE_TLS" && flags=("${flags[@]}" "ldaps://:${LDAP_LDAPS_PORT_NUMBER}/")
+if is_boolean_yes "$LDAP_ENABLE_TLS"; then
+    # Add LDAPS URI when TLS is enabled
+    flags=("-h" "ldap://:${LDAP_PORT_NUMBER}/ ldaps://:${LDAP_LDAPS_PORT_NUMBER}/")
+else
+    flags=("-h" "ldap://:${LDAP_PORT_NUMBER}/")
+fi
 
 # Add "@" so users can add extra command line flags
 flags+=("-F" "${LDAP_CONF_DIR}/slapd.d" "-d" "$LDAP_LOGLEVEL" "$@")
