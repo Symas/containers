@@ -84,8 +84,7 @@ cron_start() {
     elif [[ -x "/usr/sbin/crond" ]]; then
         /usr/sbin/crond
     else
-        # 0 = true
-        return 0
+        false
     fi
 }
 

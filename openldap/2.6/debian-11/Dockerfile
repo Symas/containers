@@ -1,14 +1,17 @@
+# syntax=docker/dockerfile:1
+
 # Copyright VMware, Inc. 2003
 # Copyright Symas Corp. 2003
 # SPDX-License-Identifier: APACHE-2.0
 
-FROM docker.io/bitnami/minideb:bullseye
+FROM ${ARCH}docker.io/bitnami/minideb:bullseye
 
 ARG TARGETARCH
+ARG NOW
 
 LABEL \
       org.opencontainers.image.base.name="docker.io/bitnami/minideb:bullseye" \
-      org.opencontainers.image.created="2023-10-02T08:57:12Z" \
+      org.opencontainers.image.created="${NOW}" \
       org.opencontainers.image.description="Application packaged by Symas Corp." \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.ref.name="2.6.6-debian-11-r57" \
@@ -22,7 +25,7 @@ ENV HOME="/" \
     OS_NAME="linux"
 
 COPY prebuildfs /
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+# SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # Install required system packages and dependencies
 
@@ -56,7 +59,9 @@ RUN useradd --system --gid 1001 --uid 1001 --groups root ${LDAP_DAEMON_USER:-sla
 RUN install_packages ca-certificates curl gnupg libcap2-bin libcom-err2 libcrypt1 libkeyutils1 libltdl7 libnsl2 libnss3-tools libodbc1 libperl5.32 libtirpc3 libwrap0 mdbtools procps psmisc
 
 # Configure the Symas Debian package repositories.
-RUN curl -fsSL https://repo.symas.com/configs/SOLDAP/d10/release26.list -o /etc/apt/sources.list.d/soldap-release26.list \
+ARG DEBIAN=11 TRAIN=release VERSION=26
+RUN curl -fsSL https://repo.symas.com/configs/SOLDAP/d${DEBIAN}/${TRAIN}${VERSION}.list -o /etc/apt/sources.list.d/soldap-${TRAIN}${VERSION}.list \
+    && curl -fsSL https://repo.symas.com/configs/SOLDAP/d11/testing26.list | sed -e 's/amd64/arm64/' > /etc/apt/sources.list.d/soldap-testing26.list \
     && APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=please apt-key adv --keyserver keyserver.ubuntu.com --recv-keys DA26A148887DCBEB \
     && apt-get -y update
 
