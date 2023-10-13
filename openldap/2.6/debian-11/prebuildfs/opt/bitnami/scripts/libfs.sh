@@ -79,10 +79,10 @@ are_dirs_empty() {
     result=true
     for dir in "$@"; do
         if ! is_dir_empty "$dir" ; then
-            return false
+            result=false
         fi
     done
-    true
+    $result
 }
 
 ########################
