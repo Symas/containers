@@ -513,7 +513,7 @@ ldap_add_schemas() {
 #   None
 #########################
 ldap_add_custom_schema() {
-    info "Adding custom Schema : $LDAP_CUSTOM_SCHEMA_FILE ..."
+    info "Adding custom Schema from ${LDAP_CUSTOM_SCHEMA_FILE} ..."
     debug_execute slapadd "${slapd_debug_args[@]}" -F "$LDAP_ONLINE_CONF_DIR" -n 0 -l  "$LDAP_CUSTOM_SCHEMA_FILE"
     ldap_stop
     while is_ldap_running; do sleep 1; done
@@ -530,8 +530,11 @@ ldap_add_custom_schema() {
 #   None
 #########################
 ldap_add_custom_schemas() {
-    info "Adding custom schemas : $LDAP_CUSTOM_SCHEMA_DIR ..."
-    find "$LDAP_CUSTOM_SCHEMA_DIR" -maxdepth 1 \( -type f -o -type l \) -iname '*.ldif' -print0 | sort -z | xargs --null -I{} bash -c ". ${BASE_DIR}/scripts/libos.sh && debug_execute slapadd "${slapd_debug_args[@]}" -F \"$LDAP_ONLINE_CONF_DIR\" -n 0 -l {}"
+    info "Adding custom schemas in ${LDAP_CUSTOM_SCHEMA_DIR} ..."
+    for schema in $(find "$LDAP_CUSTOM_SCHEMA_DIR" -maxdepth 1 \( -type f -o -type l \) -iname '*.ldif' -print | sort); do
+	info "\t${schema}"
+	debug_execute slapadd "${slapd_debug_args[@]}" -F "${LDAP_ONLINE_CONF_DIR}" -n 0 -l "${schema}"
+    done
     ldap_stop
     while is_ldap_running; do sleep 1; done
     ldap_start_bg
@@ -619,10 +622,10 @@ EOF
 #   None
 #########################
 ldap_add_custom_ldifs() {
-    info "Loading custom LDIF files..."
     warn "Ignoring LDAP_USERS, LDAP_PASSWORDS, LDAP_USER_DC and LDAP_GROUP environment variables..."
+    info "Loading custom LDIF files..."
     for ldif in $(find "$LDAP_CUSTOM_LDIF_DIR" -maxdepth 1 \( -type f -o -type l \) -iname '*.ldif' -print | sort); do
-	info "loading ${ldif}"
+	info "\t${ldif}"
 	debug_execute ldapadd -f "${ldif}" -H "${LDAP_LDAPI_URI}" -D "${LDAP_ADMIN_DN}" -w "${LDAP_ADMIN_PASSWORD}"
     done
 }
