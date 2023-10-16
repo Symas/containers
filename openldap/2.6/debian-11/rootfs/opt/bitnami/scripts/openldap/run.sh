@@ -1,5 +1,6 @@
 #!/bin/bash
-# Copyright VMware, Inc.
+# Copyright VMware, Inc. 2023
+# Copyright Symas Corp. 2023
 # SPDX-License-Identifier: APACHE-2.0
 
 # shellcheck disable=SC1091

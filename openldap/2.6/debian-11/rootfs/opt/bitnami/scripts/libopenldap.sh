@@ -621,7 +621,10 @@ EOF
 ldap_add_custom_ldifs() {
     info "Loading custom LDIF files..."
     warn "Ignoring LDAP_USERS, LDAP_PASSWORDS, LDAP_USER_DC and LDAP_GROUP environment variables..."
-    find "$LDAP_CUSTOM_LDIF_DIR" -maxdepth 1 \( -type f -o -type l \) -iname '*.ldif' -print0 | sort -z | xargs --null -I{} bash -c ". ${BASE_DIR}/scripts/libos.sh && . ${BASE_DIR}/scripts/liblog.sh && log info "==> {}" && debug_execute ldapadd -f {} -H '$LDAP_LDAPI_URI' -D \"$LDAP_ADMIN_DN\" -w \"$LDAP_ADMIN_PASSWORD\""
+    for ldif in $(find "$LDAP_CUSTOM_LDIF_DIR" -maxdepth 1 \( -type f -o -type l \) -iname '*.ldif' -print | sort); do
+	info "loading ${ldif}"
+	debug_execute ldapadd -f "${ldif}" -H "${LDAP_LDAPI_URI}" -D "${LDAP_ADMIN_DN}" -w "${LDAP_ADMIN_PASSWORD}"
+    done
 }
 
 ########################
