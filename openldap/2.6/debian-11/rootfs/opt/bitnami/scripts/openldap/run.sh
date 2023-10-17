@@ -32,6 +32,6 @@ fi
 # Add "@" so users can add extra command line flags
 flags+=("-F" "${LDAP_CONF_DIR}/slapd.d" "-d" "$LDAP_LOGLEVEL" "$@")
 
-info "** Starting slapd **"
+info "Starting slapd"
 am_i_root && flags=("-u" "$LDAP_DAEMON_USER" "${flags[@]}")
 exec "${command}" "${flags[@]}"

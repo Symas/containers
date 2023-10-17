@@ -8,6 +8,15 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
+
+setup_failure() {
+    error "LDAP setup incomplete, unable to start service."
+    rm -f "$LDAP_VOLUME_DIR/.ldap_setup_complete"
+    ldap_stop
+    exit 1
+}
+trap 'setup_failure' 1 2 3 13 15
+
 # Load libraries
 . /opt/bitnami/scripts/liblog.sh
 . /opt/bitnami/scripts/libos.sh
@@ -15,6 +24,10 @@ set -o pipefail
 
 # Load LDAP environment variables
 eval "$(ldap_env)"
+
+if [ ! "${SYMAS_DEBUG_SETUP:-}X" = "X" ]; then
+    set -x
+fi
 
 # Ensure all OpenLDAP environment variables are valid
 ldap_validate
@@ -27,9 +40,6 @@ if am_i_root; then
 fi
 
 if ! is_ldap_setup; then
-    # Ensure OpenLDAP is stopped when this script ends
-    trap "ldap_stop" EXIT
-
     # Ensure the OpenLDAP server is initialize
     ldap_initialize
 

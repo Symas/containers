@@ -143,7 +143,16 @@ EOF
 }
 
 if is_boolean_yes "${SYMAS_DEBUG:-false}" ; then
-    slapd_debug_args=("-d" "-1")
+    # LDAP_LOGLEVEL is unset at this time except by the user because
+    # this code executes before the first call to ldap_env().
+    if [ "${LDAP_LOGLEVEL:-}X" = "X" ]; then
+        # If not set by the user, and they want debugging, then enable
+        # all debugging output posssible.
+        export LDAP_LOGLEVEL=-1
+        slapd_debug_args=("-d" "-1")
+    else
+        slapd_debug_args=("-d" "${LDAP_LOGLEVEL}")
+    fi
 else
     slapd_debug_args=()
 fi
@@ -250,7 +259,7 @@ ldap_start_bg() {
 
     if is_ldap_not_running; then
         info "Starting OpenLDAP server in background"
-	ensure_dir_exists $(dirname "$LDAP_PID_FILE") ${LDAP_DAEMON_USER} ${LDAP_DAEMON_GROUP}
+        ensure_dir_exists $(dirname "$LDAP_PID_FILE") ${LDAP_DAEMON_USER} ${LDAP_DAEMON_GROUP}
         ulimit -n "$LDAP_ULIMIT_NOFILES"
         am_i_root && flags=("-u" "$LDAP_DAEMON_USER" "${flags[@]}")
         debug_execute slapd "${flags[@]}" &
@@ -277,15 +286,15 @@ ldap_stop() {
         local return_value=0
         read -r -a db_files <<< "$(debug_execute find "$LDAP_DATA_DIR" -type f -print0 | xargs -0)"
         for f in "${db_files[@]}"; do
-	    result=$(fuser "$f" 2>&1)
-	    pid=$(echo $result | cut -d ':' -f 2-)
-	    if [ -n "$pid" ]; then
-		if is_boolean_yes "${SYMAS_DEBUG:-false}" ; then
-		    process=$(ps -p $"pid" -o comm=)
-		    warn "ldap_stop waiting on ${process} to close ${f} file"
-		fi
-		return_value=1
-	    fi
+            result=$(fuser "$f" 2>&1)
+            pid=$(echo $result | cut -d ':' -f 2-)
+            if [ -n "$pid" ]; then
+                if is_boolean_yes "${SYMAS_DEBUG:-false}" ; then
+                    process=$(ps -p $"pid" -o comm=)
+                    warn "ldap_stop waiting on ${process} to close ${f} file"
+                fi
+                return_value=1
+            fi
         done
         return "$return_value"
     }
@@ -402,8 +411,10 @@ ldap_create_online_configuration() {
     info "Creating LDAP online configuration"
 
     ldap_create_slapd_file
-    ! am_i_root && replace_in_file "${LDAP_SHARE_DIR}/slapd.ldif" "uidNumber=0" "uidNumber=$(id -u)"
-    ! am_i_root && replace_in_file "${LDAP_SHARE_DIR}/slapd.ldif" "gidNumber=0" "gidNumber=$(id -g)"
+    if ! am_i_root; then
+        replace_in_file "${LDAP_SHARE_DIR}/slapd.ldif" "uidNumber=0" "uidNumber=$(id -u)"
+        replace_in_file "${LDAP_SHARE_DIR}/slapd.ldif" "gidNumber=0" "gidNumber=$(id -g)"
+    fi
     local -a flags=(-F "$LDAP_ONLINE_CONF_DIR" -n 0 -l "${LDAP_SHARE_DIR}/slapd.ldif")
     if am_i_root; then
         debug_execute run_as_user "$LDAP_DAEMON_USER" slapadd "${slapd_debug_args[@]}" "${flags[@]}"
@@ -496,9 +507,13 @@ EOF
 #   None
 #########################
 ldap_add_schemas() {
-    info "Adding LDAP extra schemas"
+    info "Adding LDAP extra schemas ${LDAP_EXTRA_SCHEMAS} ..."
     read -r -a schemas <<< "$(tr ',;' ' ' <<< "${LDAP_EXTRA_SCHEMAS}")"
     for schema in "${schemas[@]}"; do
+        info "\t${LDAP_CONF_DIR}/schema/${schema}.ldif"
+        if [ ! -f "${LDAP_CONF_DIR}/schema/${schema}.ldif" ]; then
+            error "Extra schema ${schema} does not exist at ${LDAP_CONF_DIR}/schema/${schema}.ldif"
+        fi
         debug_execute ldapadd "${slapd_debug_args[@]}" -Y EXTERNAL -H "$LDAP_LDAPI_URI" -f "${LDAP_CONF_DIR}/schema/${schema}.ldif"
     done
 }
@@ -532,8 +547,8 @@ ldap_add_custom_schema() {
 ldap_add_custom_schemas() {
     info "Adding custom schemas in ${LDAP_CUSTOM_SCHEMA_DIR} ..."
     for schema in $(find "$LDAP_CUSTOM_SCHEMA_DIR" -maxdepth 1 \( -type f -o -type l \) -iname '*.ldif' -print | sort); do
-	info "\t${schema}"
-	debug_execute slapadd "${slapd_debug_args[@]}" -F "${LDAP_ONLINE_CONF_DIR}" -n 0 -l "${schema}"
+        info "\t${schema}"
+        debug_execute slapadd "${slapd_debug_args[@]}" -F "${LDAP_ONLINE_CONF_DIR}" -n 0 -l "${schema}"
     done
     ldap_stop
     while is_ldap_running; do sleep 1; done
@@ -625,8 +640,8 @@ ldap_add_custom_ldifs() {
     warn "Ignoring LDAP_USERS, LDAP_PASSWORDS, LDAP_USER_DC and LDAP_GROUP environment variables..."
     info "Loading custom LDIF files..."
     for ldif in $(find "$LDAP_CUSTOM_LDIF_DIR" -maxdepth 1 \( -type f -o -type l \) -iname '*.ldif' -print | sort); do
-	info "\t${ldif}"
-	debug_execute ldapadd -f "${ldif}" -H "${LDAP_LDAPI_URI}" -D "${LDAP_ADMIN_DN}" -w "${LDAP_ADMIN_PASSWORD}"
+        info "\t${ldif}"
+        debug_execute ldapadd -f "${ldif}" -H "${LDAP_LDAPI_URI}" -D "${LDAP_ADMIN_DN}" -w "${LDAP_ADMIN_PASSWORD}"
     done
 }
 
@@ -647,20 +662,20 @@ ldap_configure_permissions() {
       if am_i_root; then
           chmod -R g+rwX "$path"
           chown -R "$LDAP_DAEMON_USER:$LDAP_DAEMON_GROUP" "$path"
-	  info "Ensuring ${expected}=$path is $LDAP_DAEMON_USER:$LDAP_DAEMON_GROUP and 0775/drwxrwxr-x/g+rwX recursively"
+          info "Ensuring ${expected}=$path is $LDAP_DAEMON_USER:$LDAP_DAEMON_GROUP and 0775/drwxrwxr-x/g+rwX recursively"
       else
-	  groups=$(id -nG)
-	  whoami="$(id -nu):${groups// /,}"
-	  for item in $(find $path \! -type l); do
-	      owgr="$(stat -c "%U:%G" "$item")"
-	      if [[ "$owgr" != "$LDAP_DAEMON_USER:$LDAP_DAEMON_GROUP" ]]; then
-	          warn "${expected}=$item is $owgr rather than the expected $LDAP_DAEMON_USER:$LDAP_DAEMON_GROUP"
+          groups=$(id -nG)
+          whoami="$(id -nu):${groups// /,}"
+          for item in $(find $path \! -type l); do
+              owgr="$(stat -c "%U:%G" "$item")"
+              if [[ "$owgr" != "$LDAP_DAEMON_USER:$LDAP_DAEMON_GROUP" ]]; then
+                  warn "${expected}=$item is $owgr rather than the expected $LDAP_DAEMON_USER:$LDAP_DAEMON_GROUP"
               fi
-	      perms="$(stat "$item" | grep -oP "(?<=Access: \()[^)]*")"
-	      if [[ "$perms" =~ 07[^75]5/drwxrwxr-x ]]; then
-	          warn "${expected}=${item} (${owgr}) has permissions $perms process exec'ed by ${whoami}"
+              perms="$(stat "$item" | grep -oP "(?<=Access: \()[^)]*")"
+              if [[ "$perms" =~ 07[^75]5/drwxrwxr-x ]]; then
+                  warn "${expected}=${item} (${owgr}) has permissions $perms process exec'ed by ${whoami}"
               fi
-	  done
+          done
       fi
   done
 }
@@ -680,14 +695,14 @@ ldap_initialize() {
     ldap_configure_permissions
     if are_dirs_empty "${LDAP_DATA_DIR}" "${LDAP_ONLINE_CONF_DIR}"; then
         info "Setting up ${LDAP_VOLUME_DIR}/{data,slapd.d} config and data."
-	ensure_dir_exists "${LDAP_ONLINE_CONF_DIR}" ${LDAP_DAEMON_USER} ${LDAP_DAEMON_GROUP}
-	ensure_dir_exists "${LDAP_DATA_DIR}" ${LDAP_DAEMON_USER} ${LDAP_DAEMON_GROUP}
+        ensure_dir_exists "${LDAP_ONLINE_CONF_DIR}" ${LDAP_DAEMON_USER} ${LDAP_DAEMON_GROUP}
+        ensure_dir_exists "${LDAP_DATA_DIR}" ${LDAP_DAEMON_USER} ${LDAP_DAEMON_GROUP}
 
         # Create OpenLDAP online configuration
         ldap_create_online_configuration
         ldap_start_bg
         ldap_admin_credentials
-	info "Setting up optional config..."
+        info "Setting up optional config..."
         if ! is_boolean_yes "$LDAP_ALLOW_ANON_BINDING"; then
             ldap_disable_anon_binding
         fi
@@ -751,12 +766,12 @@ ldap_initialize() {
 #########################
 ldap_custom_init_scripts() {
     if [[ -f "${LDAP_VOLUME_DIR}/.user_scripts_initialized" ]]; then
-	info "Presence of file ${LDAP_VOLUME_DIR}/.user_scripts_initialized indicates that the user scripts have already been initialized."
-	return 0
+        info "Presence of file ${LDAP_VOLUME_DIR}/.user_scripts_initialized indicates that the user scripts have already been initialized."
+        return 0
     fi
     if is_dir_empty "${LDAP_ENTRYPOINT_INITDB_D_DIR}"; then
         info "The user's custom files directory ${LDAP_ENTRYPOINT_INITDB_D_DIR} is missing or empty.";
-	return 0
+        return 0
     fi
     info "Loading user's custom files from ${LDAP_ENTRYPOINT_INITDB_D_DIR}";
     if [[ -n $(find "${LDAP_ENTRYPOINT_INITDB_D_DIR}"/ -type f -regex ".*\.\(sh\)") ]]; then
@@ -859,7 +874,7 @@ olcModulePath: $1
 olcModuleLoad: $2
 EOF
     if is_ldap_running; then
-	debug_execute ldapadd "${slapd_debug_args[@]}" -Y EXTERNAL -H "$LDAP_LDAPI_URI" -f "${LDAP_SHARE_DIR}/enable_module_$2.ldif"
+        debug_execute ldapadd "${slapd_debug_args[@]}" -Y EXTERNAL -H "$LDAP_LDAPI_URI" -f "${LDAP_SHARE_DIR}/enable_module_$2.ldif"
     else
         local -a flags=(-F "$LDAP_ONLINE_CONF_DIR" -n 0 -l "${LDAP_SHARE_DIR}/enable_module_$2.ldif")
         if am_i_root; then
