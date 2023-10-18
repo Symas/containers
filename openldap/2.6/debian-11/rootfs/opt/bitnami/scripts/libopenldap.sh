@@ -391,7 +391,7 @@ olcSuffix: dc=my-domain,dc=com
 olcRootDN: cn=Manager,dc=my-domain,dc=com
 olcMonitoring: FALSE
 olcDbDirectory: ${LDAP_DATA_DIR}
-olcDbIndex: objectClass eq,pres
+olcDbIndex: objectClass eq
 olcDbIndex: ou,cn,mail,surname,givenname eq,pres,sub
 
 EOF
@@ -529,10 +529,7 @@ ldap_add_schemas() {
 #########################
 ldap_add_custom_schema() {
     info "Adding custom Schema from ${LDAP_CUSTOM_SCHEMA_FILE} ..."
-    debug_execute slapadd "${slapd_debug_args[@]}" -F "$LDAP_ONLINE_CONF_DIR" -n 0 -l  "$LDAP_CUSTOM_SCHEMA_FILE"
-    ldap_stop
-    while is_ldap_running; do sleep 1; done
-    ldap_start_bg
+    debug_execute ldapadd "${slapd_debug_args[@]}" -Y EXTERNAL -H "$LDAP_LDAPI_URI" -f "$LDAP_CUSTOM_SCHEMA_FILE"
 }
 
 ########################
@@ -548,11 +545,8 @@ ldap_add_custom_schemas() {
     info "Adding custom schemas in ${LDAP_CUSTOM_SCHEMA_DIR} ..."
     for schema in $(find "$LDAP_CUSTOM_SCHEMA_DIR" -maxdepth 1 \( -type f -o -type l \) -iname '*.ldif' -print | sort); do
         info "\t${schema}"
-        debug_execute slapadd "${slapd_debug_args[@]}" -F "${LDAP_ONLINE_CONF_DIR}" -n 0 -l "${schema}"
+	debug_execute ldapadd "${slapd_debug_args[@]}" -Y EXTERNAL -H "$LDAP_LDAPI_URI" -F "${LDAP_ONLINE_CONF_DIR}" -n 0 -l "${schema}"
     done
-    ldap_stop
-    while is_ldap_running; do sleep 1; done
-    ldap_start_bg
 }
 
 ########################
