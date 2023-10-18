@@ -99,7 +99,7 @@ The main folder of each application contains a functional `docker-compose.yml`
 file. Run the application using it as shown below:
 
 ```console
-curl -sSL https://raw.githubusercontent.com/symas/containers/main/symas/openldap/docker-compose.yml > docker-compose.yml
+curl -sSL https://raw.githubusercontent.com/symas/containers/main/openldap/docker-compose.yml > docker-compose.yml
 docker-compose up -d
 ```
 
