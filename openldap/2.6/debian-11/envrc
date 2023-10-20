@@ -1,0 +1,4 @@
+. /opt/bitnami/scripts/libopenldap.sh
+eval "$(ldap_env)"
+echo "Next 'cd /opt/bitnami', 'set -x', or 'bash -x ./scripts/openldap/setup.sh' and so on from there."
+echo "Or you could simply '/opt/bitnami/scripts/openldap/entrypoint.sh /opt/bitnami/scripts/openldap/run.sh'"
