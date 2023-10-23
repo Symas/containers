@@ -329,18 +329,24 @@ We'd love for you to contribute to this container. You can request new features 
 
 ## Issues
 
-If you encounter a problem running this container, you can file an [issue](https://github.com/symas/containers/issues/new/choose). For us to provide better support, be sure to fill the issue template.
+If you encounter a problem running this container, you can file an
+[issue](https://github.com/symas/containers/issues/new/choose). For us to
+provide better support, be sure to fill out the issue template in detail.
 
 ## License
 
 Copyright &copy; 2023 VMware, Inc.
 Copyright &copy; 2023 Symas Corp.
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
+This license applies to the files in this repository which are licensed
+for use under the Apache License, Version 2.0 (the "License"); you may not use
+this file except in compliance with the License. You may obtain a copy of the
+License at
 
 <http://www.apache.org/licenses/LICENSE-2.0>
+
+Software incorporated in this container may have other licenses with thier own
+terms and conditions.
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,

@@ -35,8 +35,9 @@ export LDAP_SBIN_DIR="${LDAP_BASE_DIR}/sbin"
 export LDAP_CONF_DIR="${LDAP_BASE_DIR}/etc"
 export LDAP_SHARE_DIR="${LDAP_BASE_DIR}/share"
 export LDAP_VAR_DIR="${LDAP_BASE_DIR}/var"
-export LDAP_VOLUME_DIR="/openldap"
+export LDAP_VOLUME_DIR="${LDAP_VOLUME_DIR:-/openldap}"
 export LDAP_DATA_DIR="${LDAP_VOLUME_DIR}/data"
+export LDAP_BACKEND_DATA_DIR="${LDAP_DATA_DIR}/backend"
 export LDAP_ACCESSLOG_DATA_DIR="${LDAP_DATA_DIR}/accesslog"
 export LDAP_ONLINE_CONF_DIR="${LDAP_VOLUME_DIR}/slapd.d"
 export LDAP_PID_FILE="${LDAP_VAR_DIR}/run/slapd.pid"
@@ -70,6 +71,7 @@ export LDAP_SKIP_DEFAULT_TREE="${LDAP_SKIP_DEFAULT_TREE:-no}"
 export LDAP_USERS="${LDAP_USERS:-user01,user02}"
 export LDAP_PASSWORDS="${LDAP_PASSWORDS:-pa55word1,pa55word2}"
 export LDAP_USER_DC="${LDAP_USER_DC:-users}"
+export LDAP_GROUP_DC="${LDAP_GROUP_DC:-groups}"
 export LDAP_GROUP="${LDAP_GROUP:-readers}"
 export LDAP_ENABLE_TLS="${LDAP_ENABLE_TLS:-no}"
 export LDAP_REQUIRE_TLS="${LDAP_REQUIRE_TLS:-no}"
@@ -80,7 +82,7 @@ export LDAP_PASSWORD_HASH="${LDAP_PASSWORD_HASH:-{SSHA\}}"
 export LDAP_CONFIGURE_PPOLICY="${LDAP_CONFIGURE_PPOLICY:-no}"
 export LDAP_PPOLICY_USE_LOCKOUT="${LDAP_PPOLICY_USE_LOCKOUT:-no}"
 export LDAP_PPOLICY_HASH_CLEARTEXT="${LDAP_PPOLICY_HASH_CLEARTEXT:-no}"
-export LDAP_ENABLE_ACCESSLOG="${LDAP_ENABLE_ACCESSLOG:-no}"
+export LDAP_ENABLE_ACCESSLOG="${LDAP_ENABLE_ACCESSLOG:-yes}"
 export LDAP_ACCESSLOG_DB="${LDAP_ACCESSLOG_DB:-cn=accesslog}"
 export LDAP_ACCESSLOG_LOGOPS="${LDAP_ACCESSLOG_LOGOPS:-writes}"
 export LDAP_ACCESSLOG_LOGSUCCESS="${LDAP_ACCESSLOG_LOGSUCCESS:-TRUE}"
@@ -91,7 +93,7 @@ export LDAP_ACCESSLOG_ADMIN_USERNAME="${LDAP_ACCESSLOG_ADMIN_USERNAME:-admin}"
 export LDAP_ACCESSLOG_ADMIN_DN="${LDAP_ACCESSLOG_ADMIN_USERNAME/#/cn=},${LDAP_ACCESSLOG_DB:-cn=accesslog}"
 export LDAP_ACCESSLOG_ADMIN_PASSWORD="${LDAP_ACCESSLOG_PASSWORD:-accesspassword}"
 export LDAP_ENABLE_SYNCPROV="${LDAP_ENABLE_SYNCPROV:-no}"
-export LDAP_SYNCPROV_CHECKPPOINT="${LDAP_SYNCPROV_CHECKPPOINT:-100 10}"
+export LDAP_SYNCPROV_CHECKPOINT="${LDAP_SYNCPROV_CHECKPOINT:-100 10}"
 export LDAP_SYNCPROV_SESSIONLOG="${LDAP_SYNCPROV_SESSIONLOG:-100}"
 
 # By setting an environment variable matching *_FILE to a file path, the prefixed environment
@@ -284,7 +286,7 @@ ldap_stop() {
 
     are_db_files_locked() {
         local return_value=0
-        read -r -a db_files <<< "$(debug_execute find "$LDAP_DATA_DIR" -type f -print0 | xargs -0)"
+        read -r -a db_files <<< "$(find "$LDAP_DATA_DIR" -type f -print0 | xargs -0)"
         for f in "${db_files[@]}"; do
             result=$(fuser "$f" 2>&1)
             pid=$(echo $result | cut -d ':' -f 2-)
@@ -334,13 +336,12 @@ olcPidFile: ${LDAP_BASE_DIR}/var/run/slapd.pid
 #
 # Load dynamic backend modules commonly compiled in and available by default:
 #
+
 dn: cn=module,cn=config
 objectClass: olcModuleList
 cn: module
 olcModulePath: ${LDAP_BASE_DIR}/lib/openldap
 olcModuleLoad: back_mdb.la
-#olcModuleload: back_ldap.la
-#olcModuleload: back_passwd.la
 
 #
 # Schema settings
@@ -377,20 +378,21 @@ olcAccess: to * by dn.base="gidNumber=0+uidNumber=0,cn=peercred,cn=external,cn=a
 dn: olcDatabase=monitor,cn=config
 objectClass: olcDatabaseConfig
 olcDatabase: monitor
-olcAccess: to * by dn.base="gidNumber=0+uidNumber=0,cn=peercred,cn=external,cn=auth" read by dn.base="cn=Manager,dc=my-domain,dc=com" read by * none
+olcAccess: to * by dn.base="gidNumber=0+uidNumber=0,cn=peercred,cn=external,cn=auth" read by dn.base="cn=Manager,${LDAP_ROOT}" read by * none
 
 #
 # Backend database definitions
 #
+
 dn: olcDatabase=mdb,cn=config
 objectClass: olcDatabaseConfig
 objectClass: olcMdbConfig
 olcDatabase: mdb
 olcDbMaxSize: 1073741824
-olcSuffix: dc=my-domain,dc=com
-olcRootDN: cn=Manager,dc=my-domain,dc=com
+olcSuffix: ${LDAP_ROOT}
+olcRootDN: cn=Manager,${LDAP_ROOT}
 olcMonitoring: FALSE
-olcDbDirectory: ${LDAP_DATA_DIR}
+olcDbDirectory: ${LDAP_BACKEND_DATA_DIR}
 olcDbIndex: objectClass eq,pres
 olcDbIndex: ou,cn,mail,surname,givenname eq,pres,sub
 
@@ -415,6 +417,7 @@ ldap_create_online_configuration() {
         replace_in_file "${LDAP_SHARE_DIR}/slapd.ldif" "uidNumber=0" "uidNumber=$(id -u)"
         replace_in_file "${LDAP_SHARE_DIR}/slapd.ldif" "gidNumber=0" "gidNumber=$(id -g)"
     fi
+    ensure_dir_exists "$LDAP_BACKEND_DATA_DIR" ${LDAP_DAEMON_USER} ${LDAP_DAEMON_GROUP}
     local -a flags=(-F "$LDAP_ONLINE_CONF_DIR" -n 0 -l "${LDAP_SHARE_DIR}/slapd.ldif")
     if am_i_root; then
         debug_execute run_as_user "$LDAP_DAEMON_USER" slapadd "${slapd_debug_args[@]}" "${flags[@]}"
@@ -453,7 +456,7 @@ olcRootPW: ${LDAP_ENCRYPTED_ADMIN_PASSWORD}
 dn: olcDatabase={1}monitor,cn=config
 changetype: modify
 replace: olcAccess
-olcAccess: {0}to * by dn.base="gidNumber=0+uidNumber=0,cn=peercred,cn=external, cn=auth" read by dn.base="${LDAP_ADMIN_DN}" read by * none
+olcAccess: {0}to * by dn.base="gidNumber=$(id -g)+uidNumber=$(id -u),cn=peercred,cn=external, cn=auth" read by dn.base="${LDAP_ADMIN_DN}" read by * none
 EOF
     if is_boolean_yes "$LDAP_CONFIG_ADMIN_ENABLED"; then
         cat >> "${LDAP_SHARE_DIR}/admin.ldif" << EOF
@@ -588,6 +591,10 @@ dn: ${LDAP_USER_DC/#/ou=},${LDAP_ROOT}
 objectClass: organizationalUnit
 ou: users
 
+dn: ${LDAP_GROUP_DC/#/ou=},${LDAP_ROOT}
+objectClass: organizationalUnit
+ou: users
+
 EOF
     read -r -a users <<< "$(tr ',;' ' ' <<< "${LDAP_USERS}")"
     read -r -a passwords <<< "$(tr ',;' ' ' <<< "${LDAP_PASSWORDS}")"
@@ -612,7 +619,7 @@ EOF
     done
     cat >> "${LDAP_SHARE_DIR}/tree.ldif" << EOF
 # Group creation
-dn: ${LDAP_GROUP/#/cn=},${LDAP_USER_DC/#/ou=},${LDAP_ROOT}
+dn: ${LDAP_GROUP/#/cn=},${LDAP_GROUP_DC/#/ou=},${LDAP_ROOT}
 cn: $LDAP_GROUP
 objectClass: groupOfNames
 # User group membership
@@ -672,7 +679,7 @@ ldap_configure_permissions() {
                   warn "${expected}=$item is $owgr rather than the expected $LDAP_DAEMON_USER:$LDAP_DAEMON_GROUP"
               fi
               perms="$(stat "$item" | grep -oP "(?<=Access: \()[^)]*")"
-              if [[ "$perms" =~ 07[^75]5/drwxrwxr-x ]]; then
+              if [[ "$perms" =~ 0775/drwxrwxr-x|0755/drwxr-xr-x ]]; then
                   warn "${expected}=${item} (${owgr}) has permissions $perms process exec'ed by ${whoami}"
               fi
           done
@@ -720,7 +727,7 @@ ldap_initialize() {
             ldap_add_custom_schemas
         fi
         # additional configuration
-        if [[ ! "$LDAP_PASSWORD_HASH" == "{SSHA}" ]]; then
+        if ! [[ "$LDAP_PASSWORD_HASH" == "{SSHA}" ]]; then
             ldap_configure_password_hash
         fi
         if is_boolean_yes "$LDAP_CONFIGURE_PPOLICY"; then
@@ -766,36 +773,63 @@ ldap_initialize() {
 #########################
 ldap_custom_init_scripts() {
     if [[ -f "${LDAP_VOLUME_DIR}/.user_scripts_initialized" ]]; then
-        info "Presence of file ${LDAP_VOLUME_DIR}/.user_scripts_initialized indicates that the user scripts have already been initialized."
+	debug "\tskipping because ${LDAP_VOLUME_DIR}/.user_scripts_initialized exists"
         return 0
     fi
     if is_dir_empty "${LDAP_ENTRYPOINT_INITDB_D_DIR}"; then
-        info "The user's custom files directory ${LDAP_ENTRYPOINT_INITDB_D_DIR} is missing or empty.";
+	debug "\tnone found"
         return 0
     fi
-    info "Loading user's custom files from ${LDAP_ENTRYPOINT_INITDB_D_DIR}";
-    if [[ -n $(find "${LDAP_ENTRYPOINT_INITDB_D_DIR}"/ -type f -regex ".*\.\(sh\)") ]]; then
-        for f in "${LDAP_ENTRYPOINT_INITDB_D_DIR}"/*; do
-            debug "Executing $f"
-            case "$f" in
-                *.sh)
-                    if [[ -x "$f" ]]; then
-                        if ! "$f"; then
-                            error "Failed executing $f"
-                            return 1
-                        fi
+    read -r -a config_files <<< "$(find "${LDAP_ENTRYPOINT_INITDB_D_DIR}"/ -maxdepth 1 -type f -print0 | xargs -0)"
+    for f in "${config_files[@]}"; do
+	ret_code=-1
+        case "$f" in
+            *.ldif)
+		info "\tslapadd $f"
+		debug_execute slapadd "${slapd_debug_args[@]}" -F "${LDAP_ONLINE_CONF_DIR}" -n 0 -l "$f"
+		ret_code=$?
+                if [[ $ret_code -ne 0 ]]; then
+                    error "failed loading $f ($ret_code)"
+                    return 1
+                fi
+		;;
+            *.sh)
+                if [[ -x "$f" ]]; then
+                    info "\texecuting $f"
+                    if [[ ! "${SYMAS_DEBUG_SETUP:-}X" = "X" ]]; then
+                        bash -x "$f"
+			ret_code=$?
                     else
-                        warn "Sourcing $f as it is not executable by the current user, any error may cause initialization to fail"
-                        . "$f"
+                        bash "$f"
+			ret_code=$?
                     fi
-                    ;;
-                *)
-                    warn "Skipping $f, supported formats are: .sh"
-                    ;;
-            esac
-        done
-        touch "${LDAP_VOLUME_DIR}"/.user_scripts_initialized
-    fi
+                    if [[ $ret_code -ne 0 ]]; then
+                        error "failed executing $f ($ret_code)"
+                        return 1
+                    fi
+                elif [[ -O "$f" ]]; then
+                    info "\tsourcing $f"
+                    . "$f"
+                else
+                    warn "\tskipping $f because it is not owned by current user ($(id -u)/$(whoami)) and not executable"
+                fi
+                ;;
+            *)
+		if [[ -x "$f" ]]; then
+		    info "\texecuting $f"
+		    exec "$f"
+		    ret_code=$?
+		    if [[ $ret_code -ne 0 ]]; then
+                        error "failed executing $f ($ret_code)"
+                        return 1
+		    fi
+                else
+		    warn "\tskipping $f, not executable or Bash shell (.sh) script"
+                fi
+                ;;
+        esac
+    done
+    touch "${LDAP_VOLUME_DIR}"/.user_scripts_initialized
 }
 
 ########################
@@ -865,7 +899,7 @@ EOF
 #   None
 #########################
 ldap_load_module() {
-    info "Enable LDAP $2 module from $1"
+    info "Loading module $1/$2"
     cat > "${LDAP_SHARE_DIR}/enable_module_$2.ldif" << EOF
 dn: cn=module,cn=config
 cn: module
@@ -932,21 +966,72 @@ EOF
 ########################
 # OpenLDAP configure olcPasswordHash
 # Globals:
-#   LDAP_*
+#   LDAP_SHARE_DIR, LDAP_CRYPT_SALT_FORMAT
+#   LDAP_PASSWORD_HASH: {SSHA}, {SHA}, {SMD5}, {MD5}, {CRYPT}, or  {CLEARTEXT}
 # Arguments:
 #   None
 # Returns:
 #   None
 #########################
 ldap_configure_password_hash() {
-    info "Configuring LDAP olcPasswordHash"
+    info "Configuring LDAP olcPasswordHash: ${LDAP_PASSWORD_HASH}"
+
     cat > "${LDAP_SHARE_DIR}/password_hash.ldif" << EOF
 dn: olcDatabase={-1}frontend,cn=config
 changetype: modify
 add: olcPasswordHash
-olcPasswordHash: $LDAP_PASSWORD_HASH
 EOF
+    case "${LDAP_PASSWORD_HASH}" in
+	"{ARGON2}")
+	    ldap_load_module "${LDAP_BASE_DIR}/lib/openldap" "argon2.so"
+	    cat >> "${LDAP_SHARE_DIR}/password_hash.ldif" << EOF
+olcPasswordHash: ${LDAP_PASSWORD_HASH}
+EOF
+	    ;;
+	"{CRYPT}")
+	    cat >> "${LDAP_SHARE_DIR}/password_hash.ldif" << EOF
+olcPasswordHash: ${LDAP_PASSWORD_HASH}
+olcPasswordCryptSaltFormat: ${LDAP_CRYPT_SALT_FORMAT:-$y$.16s}
+EOF
+	    ;;
+	"{SHA256}"|"{SHA384}"|"{SHA512}"|"{SSHA256}"|"{SSHA384}"|"{SSHA512}")
+	    ldap_load_module "${LDAP_BASE_DIR}/lib/openldap" "pw-sha2.so"
+	    cat >> "${LDAP_SHARE_DIR}/password_hash.ldif" << EOF
+olcPasswordHash: ${LDAP_PASSWORD_HASH}
+EOF
+	    ;;
+	*)
+	    cat >> "${LDAP_SHARE_DIR}/password_hash.ldif" << EOF
+olcPasswordHash: ${LDAP_PASSWORD_HASH}
+EOF
+	    ;;
+    esac
     debug_execute ldapmodify "${slapd_debug_args[@]}" -Y EXTERNAL -H "$LDAP_LDAPI_URI" -f "${LDAP_SHARE_DIR}/password_hash.ldif"
+}
+
+########################
+# OpenLDAP index Access Logging
+# Globals:
+#   LDAP_*
+# Arguments:
+#   None
+# Returns:
+#   None
+#########################
+ldap_index_accesslog() {
+    if ! [[ -f "${LDAP_SHARE_DIR}/accesslog_add_indexes.ldif" ]]; then
+	info "Configure Access Log Indexes"
+	cat > "${LDAP_SHARE_DIR}/accesslog_add_indexes.ldif" << EOF
+dn: olcDatabase={2}mdb,cn=config
+changetype: modify
+add: olcDbIndex
+olcDbIndex: entryCSN eq
+-
+add: olcDbIndex
+olcDbIndex: entryUUID eq
+EOF
+	debug_execute ldapmodify "${slapd_debug_args[@]}" -Y EXTERNAL -H "$LDAP_LDAPI_URI" -f "${LDAP_SHARE_DIR}/accesslog_add_indexes.ldif"
+    fi
 }
 
 ########################
@@ -960,17 +1045,7 @@ EOF
 #########################
 ldap_enable_accesslog() {
     info "Configure Access Logging"
-    # Add indexes
-    cat > "${LDAP_SHARE_DIR}/accesslog_add_indexes.ldif" << EOF
-dn: olcDatabase={2}mdb,cn=config
-changetype: modify
-add: olcDbIndex
-olcDbIndex: entryCSN eq
--
-add: olcDbIndex
-olcDbIndex: entryUUID eq
-EOF
-    debug_execute ldapmodify "${slapd_debug_args[@]}" -Y EXTERNAL -H "$LDAP_LDAPI_URI" -f "${LDAP_SHARE_DIR}/accesslog_add_indexes.ldif"
+    ldap_index_accesslog
     # Load module
     ldap_load_module "${LDAP_BASE_DIR}/lib/openldap" "accesslog.so"
     # Create AccessLog database
@@ -1016,6 +1091,7 @@ EOF
 #########################
 ldap_enable_syncprov() {
     info "Configure Sync Provider"
+    ldap_index_accesslog
     # Load module
     ldap_load_module "${LDAP_BASE_DIR}/lib/openldap" "syncprov.so"
     # Add Sync Provider overlay
@@ -1024,9 +1100,17 @@ dn: olcOverlay=syncprov,olcDatabase={2}mdb,cn=config
 objectClass: olcOverlayConfig
 objectClass: olcSyncProvConfig
 olcOverlay: syncprov
-olcSpCheckpoint: $LDAP_SYNCPROV_CHECKPPOINT
+olcSpCheckpoint: ${LDAP_SYNCPROV_CHECKPOINT}
+EOF
+    if is_boolean_yes "${LDAP_ENABLE_ACCESSLOG}"; then
+    cat >> "${LDAP_SHARE_DIR}/syncprov_create_overlay_configuration.ldif" << EOF
+olcSpSessionLogSource: $LDAP_SYNCPROV_SESSIONLOG
+EOF
+    else
+    cat >> "${LDAP_SHARE_DIR}/syncprov_create_overlay_configuration.ldif" << EOF
 olcSpSessionLog: $LDAP_SYNCPROV_SESSIONLOG
 EOF
+fi
     debug_execute ldapadd "${slapd_debug_args[@]}" -Q -Y EXTERNAL -H "$LDAP_LDAPI_URI" -f "${LDAP_SHARE_DIR}/syncprov_create_overlay_configuration.ldif"
 }
 

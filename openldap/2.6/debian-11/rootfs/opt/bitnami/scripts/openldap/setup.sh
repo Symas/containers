@@ -44,7 +44,7 @@ if ! is_ldap_setup; then
     ldap_initialize
 
     # Allow running custom initialization scripts
-    info "Load any user-provided custom initialization scripts"
+    info "Load any user-provided custom initialization scripts in ${LDAP_ENTRYPOINT_INITDB_D_DIR}"
     ldap_custom_init_scripts
 
     # Note that we've finished setup successfully, don't do this twice

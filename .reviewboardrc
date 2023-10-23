@@ -1,0 +1,5 @@
+REVIEWBOARD_URL = "https://rbcommons.com/s/symas"
+REPOSITORY = "GitHub: symas"
+REPOSITORY_TYPE = "git"
+BRANCH = "review"
+LAND_DEST_BRANCH = "empty"

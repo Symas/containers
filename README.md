@@ -8,17 +8,27 @@
 
 ## How to contact Symas for commercial support
 
-If you've not tried running your container with `SYMAS_DEBUG` set to `true` then you might try that first, this container is primed to give you the information you need to debug issues yourself.  Also, please take a look at our [knowledge base](https://kb.symas.com/) if going to the [OpenLDAP site](https://openldap.org/) and reading the [documentation](https://openldap.org/doc/), the [quick start guide](https://openldap.org/doc/admin26/quickstart.html), and the detailed [manual pages](https://openldap.org/software/man.cgi) didn't help.  [What we publish](https://repo.symas.com) is what we provide inside the [containers](https://github.com/symas/containers) we provide to you, everything is open-source.
+Should you encounter issues when using this container, please try running with
+`SYMAS_DEBUG` set to `true` and `LDAP_LOGLEVEL` set to `256` (or `-1` to output
+all messages, or other value that suits your needs). Setting `SYMAS_DEBUG_SETUP`
+to `yes` will output each Bash command (`set -x`) during the setup
+phase. Additional information is available in our [knowledge
+base](https://kb.symas.com/), on the [OpenLDAP site](https://openldap.org/), in
+the [documentation](https://openldap.org/doc/), the [quick start
+guide](https://openldap.org/doc/admin26/quickstart.html), and the detailed
+[manual pages](https://openldap.org/software/man.cgi). [What we
+publish](https://repo.symas.com) is what we provide inside this
+[container](https://github.com/symas/containers); everything is open-source.
 
-Of course, you can always call us at: +1.650.963.7601 or email [sales](mailto:sales@symas.com) or [support](mailto:support@symas.com) teams directly with questions.  More on our support offerings can be [found on our website](https://www.symas.com/symas-tech-support).  We're also available on the Symas Discord [#openldap](https://discord.gg/t6upYQDx2) channel and chat with us directly.
+Of course, you can always call us at: +1.650.963.7601 or email [sales](mailto:sales@symas.com) or [support](mailto:support@symas.com) teams directly with questions.  More on our support offerings can be [found on our website](https://www.symas.com/symas-tech-support).
 
 Reach out to us, we're here to help.
 
 
 ## Why use our images?
 
-* Symas has, for over a decade, built, maintained, and commercially supported
-  the OpenLDAP codebase.
+* Symas has, for over a _two decades_, built, maintained, and commercially supported
+  the [OpenLDAP](https://git.openldap.org/openldap/openldap) codebase.
 * All our work on OpenLDAP has always been, and will always be open-source.  We
   are a [commercial support company](mailto:support@symas.com), here if and when
   you need us.
@@ -102,19 +112,6 @@ file. Run the application using it as shown below:
 curl -sSL https://raw.githubusercontent.com/symas/containers/main/openldap/docker-compose.yml > docker-compose.yml
 docker-compose up -d
 ```
-
-
-## Vulnerability scan in Symas container images
-
-Symas analyzes containers we ship for the presence of identifiable security
-vulnerabilities as part of the release process.  Specifically, we use two
-different tools:
-
-* [Trivy](https://github.com/aquasecurity/trivy)
-* [Grype](https://github.com/anchore/grype)
-
-GitHub Actions in the CI/CD pipeline trigger this scanners for every PR
-affecting the source code of the containers, regardless of its nature or origin.
 
 
 ## Retention policy
