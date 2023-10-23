@@ -27,8 +27,8 @@ Reach out to us, we're here to help.
 
 ## Why use our images?
 
-* Symas has, for over a decade, built, maintained, and commercially supported
-  the OpenLDAP codebase.
+* Symas has, for over a _two decades_, built, maintained, and commercially supported
+  the [OpenLDAP](https://git.openldap.org/openldap/openldap) codebase.
 * All our work on OpenLDAP has always been, and will always be open-source.  We
   are a [commercial support company](mailto:support@symas.com), here if and when
   you need us.
