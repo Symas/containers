@@ -720,7 +720,7 @@ ldap_initialize() {
             ldap_add_custom_schemas
         fi
         # additional configuration
-        if [[ ! "$LDAP_PASSWORD_HASH" == "{SSHA}" ]]; then
+        if ! [[ "$LDAP_PASSWORD_HASH" == "{SSHA}" ]]; then
             ldap_configure_password_hash
         fi
         if is_boolean_yes "$LDAP_CONFIGURE_PPOLICY"; then
