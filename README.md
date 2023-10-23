@@ -114,19 +114,6 @@ docker-compose up -d
 ```
 
 
-## Vulnerability scan in Symas container images
-
-Symas analyzes containers we ship for the presence of identifiable security
-vulnerabilities as part of the release process.  Specifically, we use two
-different tools:
-
-* [Trivy](https://github.com/aquasecurity/trivy)
-* [Grype](https://github.com/anchore/grype)
-
-GitHub Actions in the CI/CD pipeline trigger this scanners for every PR
-affecting the source code of the containers, regardless of its nature or origin.
-
-
 ## Retention policy
 
 We retain ([Symas DockerHub org](https://hub.docker.com/u/symas)) deprecated
