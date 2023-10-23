@@ -49,7 +49,7 @@ Notice the `Author` and `Signed-off-by` lines match. If they don't your PR will 
 
 ### PR Approval and Release Process
 
-1. Changes are manually reviewed by Symas team members usually within a business day.
+1. Changes are manually reviewed by Symas team members usually within a reasonable timeframe.
 2. Once the changes are accepted, the PR is tested (if needed) into the Symas CI pipeline, the container is deployed and tested (verification and functional tests) using docker-compose and Helm (if there is an associated Helm Chart).
 3. The PR is merged by the reviewer(s) in the GitHub `master` branch.
 4. Then our CI/CD system is going to push the container image to the different registries including the recently merged changes.
