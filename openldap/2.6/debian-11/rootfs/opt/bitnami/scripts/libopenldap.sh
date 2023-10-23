@@ -81,7 +81,7 @@ export LDAP_PASSWORD_HASH="${LDAP_PASSWORD_HASH:-{SSHA\}}"
 export LDAP_CONFIGURE_PPOLICY="${LDAP_CONFIGURE_PPOLICY:-no}"
 export LDAP_PPOLICY_USE_LOCKOUT="${LDAP_PPOLICY_USE_LOCKOUT:-no}"
 export LDAP_PPOLICY_HASH_CLEARTEXT="${LDAP_PPOLICY_HASH_CLEARTEXT:-no}"
-export LDAP_ENABLE_ACCESSLOG="${LDAP_ENABLE_ACCESSLOG:-no}"
+export LDAP_ENABLE_ACCESSLOG="${LDAP_ENABLE_ACCESSLOG:-yes}"
 export LDAP_ACCESSLOG_DB="${LDAP_ACCESSLOG_DB:-cn=accesslog}"
 export LDAP_ACCESSLOG_LOGOPS="${LDAP_ACCESSLOG_LOGOPS:-writes}"
 export LDAP_ACCESSLOG_LOGSUCCESS="${LDAP_ACCESSLOG_LOGSUCCESS:-TRUE}"
@@ -1037,8 +1037,16 @@ objectClass: olcOverlayConfig
 objectClass: olcSyncProvConfig
 olcOverlay: syncprov
 olcSpCheckpoint: $LDAP_SYNCPROV_CHECKPOINT
+EOF
+    if $LDAP_ENABLE_ACCESSLOG; then
+    cat >> "${LDAP_SHARE_DIR}/syncprov_create_overlay_configuration.ldif" << EOF
+olcSpSessionLogSource: $LDAP_SYNCPROV_SESSIONLOG
+EOF
+    else
+    cat >> "${LDAP_SHARE_DIR}/syncprov_create_overlay_configuration.ldif" << EOF
 olcSpSessionLog: $LDAP_SYNCPROV_SESSIONLOG
 EOF
+fi
     debug_execute ldapadd "${slapd_debug_args[@]}" -Q -Y EXTERNAL -H "$LDAP_LDAPI_URI" -f "${LDAP_SHARE_DIR}/syncprov_create_overlay_configuration.ldif"
 }
 
