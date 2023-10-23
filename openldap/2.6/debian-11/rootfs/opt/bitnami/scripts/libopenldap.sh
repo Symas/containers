@@ -672,7 +672,7 @@ ldap_configure_permissions() {
                   warn "${expected}=$item is $owgr rather than the expected $LDAP_DAEMON_USER:$LDAP_DAEMON_GROUP"
               fi
               perms="$(stat "$item" | grep -oP "(?<=Access: \()[^)]*")"
-              if [[ "$perms" =~ 07[^75]5/drwxrwxr-x ]]; then
+              if [[ "$perms" =~ 0775/drwxrwxr-x|0755/drwxr-xr-x ]]; then
                   warn "${expected}=${item} (${owgr}) has permissions $perms process exec'ed by ${whoami}"
               fi
           done
