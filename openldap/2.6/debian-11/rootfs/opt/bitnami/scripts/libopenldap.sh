@@ -335,13 +335,12 @@ olcPidFile: ${LDAP_BASE_DIR}/var/run/slapd.pid
 #
 # Load dynamic backend modules commonly compiled in and available by default:
 #
+
 dn: cn=module,cn=config
 objectClass: olcModuleList
 cn: module
 olcModulePath: ${LDAP_BASE_DIR}/lib/openldap
 olcModuleLoad: back_mdb.la
-#olcModuleload: back_ldap.la
-#olcModuleload: back_passwd.la
 
 #
 # Schema settings
@@ -383,6 +382,7 @@ olcAccess: to * by dn.base="gidNumber=0+uidNumber=0,cn=peercred,cn=external,cn=a
 #
 # Backend database definitions
 #
+
 dn: olcDatabase=mdb,cn=config
 objectClass: olcDatabaseConfig
 objectClass: olcMdbConfig
