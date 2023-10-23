@@ -773,24 +773,31 @@ ldap_custom_init_scripts() {
         info "The user's custom files directory ${LDAP_ENTRYPOINT_INITDB_D_DIR} is missing or empty.";
         return 0
     fi
-    info "Loading user's custom files from ${LDAP_ENTRYPOINT_INITDB_D_DIR}";
+    info "Loading user's custom files from ${LDAP_ENTRYPOINT_INITDB_D_DIR} ...";
     if [[ -n $(find "${LDAP_ENTRYPOINT_INITDB_D_DIR}"/ -type f -regex ".*\.\(sh\)") ]]; then
         for f in "${LDAP_ENTRYPOINT_INITDB_D_DIR}"/*; do
-            debug "Executing $f"
             case "$f" in
                 *.sh)
                     if [[ -x "$f" ]]; then
-                        if ! "$f"; then
+                        info "\texecuting $f"
+                        if [ ! "${SYMAS_DEBUG_SETUP:-}X" = "X" ]; then
+                            bash -x "$f"
+                        else
+                            bash "$f"
+                        fi
+                        if [[ $? -nq 0 ]]; then
                             error "Failed executing $f"
                             return 1
                         fi
-                    else
-                        warn "Sourcing $f as it is not executable by the current user, any error may cause initialization to fail"
+                    elif [[ -O "$f" ]]; then
+                        info "\tsourcing $f"
                         . "$f"
+                    else
+                        warn "\tskipping $f because it is not owned by current user ($(id -u)/$(whoami)) and not executable"
                     fi
                     ;;
                 *)
-                    warn "Skipping $f, supported formats are: .sh"
+                    warn "\tskipping $f, supported formats are: .sh"
                     ;;
             esac
         done
