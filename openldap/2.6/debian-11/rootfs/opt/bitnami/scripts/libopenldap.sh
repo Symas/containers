@@ -1031,7 +1031,7 @@ dn: olcOverlay=syncprov,olcDatabase={2}mdb,cn=config
 objectClass: olcOverlayConfig
 objectClass: olcSyncProvConfig
 olcOverlay: syncprov
-olcSpCheckpoint: $LDAP_SYNCPROV_CHECKPPOINT
+olcSpCheckpoint: $LDAP_SYNCPROV_CHECKPOINT
 olcSpSessionLog: $LDAP_SYNCPROV_SESSIONLOG
 EOF
     debug_execute ldapadd "${slapd_debug_args[@]}" -Q -Y EXTERNAL -H "$LDAP_LDAPI_URI" -f "${LDAP_SHARE_DIR}/syncprov_create_overlay_configuration.ldif"
