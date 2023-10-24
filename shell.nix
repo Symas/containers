@@ -14,6 +14,7 @@ mkShell {
     minikube
     python3
     python311Packages.pip.out
+    python311Packages.rbtools
     pipx
   ];
   shellHook = ''
