@@ -377,7 +377,7 @@ olcAccess: to * by dn.base="gidNumber=0+uidNumber=0,cn=peercred,cn=external,cn=a
 dn: olcDatabase=monitor,cn=config
 objectClass: olcDatabaseConfig
 olcDatabase: monitor
-olcAccess: to * by dn.base="gidNumber=0+uidNumber=0,cn=peercred,cn=external,cn=auth" read by dn.base="cn=Manager,dc=my-domain,dc=com" read by * none
+olcAccess: to * by dn.base="gidNumber=0+uidNumber=0,cn=peercred,cn=external,cn=auth" read by dn.base="cn=Manager,dc=${LDAP_ROOT}" read by * none
 
 #
 # Backend database definitions
@@ -388,8 +388,8 @@ objectClass: olcDatabaseConfig
 objectClass: olcMdbConfig
 olcDatabase: mdb
 olcDbMaxSize: 1073741824
-olcSuffix: dc=my-domain,dc=com
-olcRootDN: cn=Manager,dc=my-domain,dc=com
+olcSuffix: ${LDAP_ROOT}
+olcRootDN: cn=Manager,${LDAP_ROOT}
 olcMonitoring: FALSE
 olcDbDirectory: ${LDAP_DATA_DIR}
 olcDbIndex: objectClass eq,pres
