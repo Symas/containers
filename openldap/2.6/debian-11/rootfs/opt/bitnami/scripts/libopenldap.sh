@@ -785,12 +785,15 @@ ldap_custom_init_scripts() {
                 *.sh)
                     if [[ -x "$f" ]]; then
                         info "\texecuting $f"
-                        if [ ! "${SYMAS_DEBUG_SETUP:-}X" = "X" ]; then
+			ret_code=-1
+                        if [[ ! "${SYMAS_DEBUG_SETUP:-}X" = "X" ]]; then
                             bash -x "$f"
+			    ret_code=$?
                         else
                             bash "$f"
+			    ret_code=$?
                         fi
-                        if [[ $? -nq 0 ]]; then
+                        if [[ $ret_code -ne 0 ]]; then
                             error "Failed executing $f"
                             return 1
                         fi
@@ -944,20 +947,40 @@ EOF
 ########################
 # OpenLDAP configure olcPasswordHash
 # Globals:
-#   LDAP_*
+#   LDAP_SHARE_DIR, LDAP_CRYPT_SALT_FORMAT
+#   LDAP_PASSWORD_HASH: {SSHA}, {SHA}, {SMD5}, {MD5}, {CRYPT}, or  {CLEARTEXT}
 # Arguments:
 #   None
 # Returns:
 #   None
 #########################
 ldap_configure_password_hash() {
-    info "Configuring LDAP olcPasswordHash"
+    info "Configuring LDAP olcPasswordHash: ${LDAP_PASSWORD_HASH}"
+
     cat > "${LDAP_SHARE_DIR}/password_hash.ldif" << EOF
 dn: olcDatabase={-1}frontend,cn=config
 changetype: modify
 add: olcPasswordHash
-olcPasswordHash: $LDAP_PASSWORD_HASH
 EOF
+    case "${LDAP_PASSWORD_HASH}" in
+	"{ARGON2}"|argon2)
+	    ldap_load_module "${LDAP_BASE_DIR}/lib/openldap" "argon2.so"
+	    cat >> "${LDAP_SHARE_DIR}/password_hash.ldif" << EOF
+olcPasswordHash: {ARGON2}
+EOF
+	    ;;
+	"{CRYPT}"|crypt)
+	    cat >> "${LDAP_SHARE_DIR}/password_hash.ldif" << EOF
+olcPasswordHash: {CRYPT}
+olcPasswordCryptSaltFormat: ${LDAP_CRYPT_SALT_FORMAT:-$y$.16s}
+EOF
+	    ;;
+	*)
+	    cat >> "${LDAP_SHARE_DIR}/password_hash.ldif" << EOF
+olcPasswordHash: ${LDAP_PASSWORD_HASH}
+EOF
+	    ;;
+    esac
     debug_execute ldapmodify "${slapd_debug_args[@]}" -Y EXTERNAL -H "$LDAP_LDAPI_URI" -f "${LDAP_SHARE_DIR}/password_hash.ldif"
 }
 
