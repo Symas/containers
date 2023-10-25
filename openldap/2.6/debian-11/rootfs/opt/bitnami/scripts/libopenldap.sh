@@ -962,6 +962,31 @@ EOF
 }
 
 ########################
+# OpenLDAP index Access Logging
+# Globals:
+#   LDAP_*
+# Arguments:
+#   None
+# Returns:
+#   None
+#########################
+ldap_index_accesslog() {
+    if ! [[ -f "${LDAP_SHARE_DIR}/accesslog_add_indexes.ldif" ]]; then
+	info "Configure Access Log Indexes"
+	cat > "${LDAP_SHARE_DIR}/accesslog_add_indexes.ldif" << EOF
+dn: olcDatabase={2}mdb,cn=config
+changetype: modify
+add: olcDbIndex
+olcDbIndex: entryCSN eq
+-
+add: olcDbIndex
+olcDbIndex: entryUUID eq
+EOF
+	debug_execute ldapmodify "${slapd_debug_args[@]}" -Y EXTERNAL -H "$LDAP_LDAPI_URI" -f "${LDAP_SHARE_DIR}/accesslog_add_indexes.ldif"
+    fi
+}
+
+########################
 # OpenLDAP configure Access Logging
 # Globals:
 #   LDAP_*
@@ -972,17 +997,7 @@ EOF
 #########################
 ldap_enable_accesslog() {
     info "Configure Access Logging"
-    # Add indexes
-    cat > "${LDAP_SHARE_DIR}/accesslog_add_indexes.ldif" << EOF
-dn: olcDatabase={2}mdb,cn=config
-changetype: modify
-add: olcDbIndex
-olcDbIndex: entryCSN eq
--
-add: olcDbIndex
-olcDbIndex: entryUUID eq
-EOF
-    debug_execute ldapmodify "${slapd_debug_args[@]}" -Y EXTERNAL -H "$LDAP_LDAPI_URI" -f "${LDAP_SHARE_DIR}/accesslog_add_indexes.ldif"
+    ldap_index_accesslog
     # Load module
     ldap_load_module "${LDAP_BASE_DIR}/lib/openldap" "accesslog.so"
     # Create AccessLog database
@@ -1028,6 +1043,7 @@ EOF
 #########################
 ldap_enable_syncprov() {
     info "Configure Sync Provider"
+    ldap_index_accesslog
     # Load module
     ldap_load_module "${LDAP_BASE_DIR}/lib/openldap" "syncprov.so"
     # Add Sync Provider overlay
