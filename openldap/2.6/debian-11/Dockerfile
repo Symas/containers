@@ -59,8 +59,9 @@ RUN useradd --system --gid 1001 --uid 1001 --groups root ${LDAP_DAEMON_USER:-sla
 RUN install_packages ca-certificates curl gnupg libcap2-bin libcom-err2 libcrypt1 libkeyutils1 libltdl7 libnsl2 libnss3-tools libodbc1 libperl5.32 libtirpc3 libwrap0 mdbtools procps psmisc
 
 # Configure the Symas Debian package repositories.
-ARG DEBIAN=11 TRAIN=release VERSION=26
-RUN curl -SsLf https://repo.symas.com/configs/SOLDAP/d${DEBIAN}/${TRAIN}${VERSION}.list -o /etc/apt/sources.list.d/soldap-${TRAIN}${VERSION}.list \
+ARG DEBIAN=11 CODENAME=bullseye TRAIN=release VERSION=26
+#RUN curl -SsLf https://repo.symas.com/configs/SOLDAP/d${DEBIAN}/${TRAIN}${VERSION}.list -o /etc/apt/sources.list.d/soldap-${TRAIN}${VERSION}.list \
+RUN echo "deb [signed-by=/usr/share/keyrings/symas-key.asc] https://repo.symas.com/repo/deb/main/release${VERSION} ${CODENAME} main" | tee -a /etc/apt/sources.list.d/soldap-release${VERSION}.list \
     && curl -SsLf https://repo.symas.com/repo/gpg/RPM-GPG-KEY-symas-com-signing-key -o /usr/share/keyrings/symas-key.asc \
     && apt-get -y update
 

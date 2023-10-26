@@ -286,7 +286,7 @@ ldap_stop() {
 
     are_db_files_locked() {
         local return_value=0
-        read -r -a db_files <<< "$(debug_execute find "$LDAP_DATA_DIR" -type f -print0 | xargs -0)"
+        read -r -a db_files <<< "$(find "$LDAP_DATA_DIR" -type f -print0 | xargs -0)"
         for f in "${db_files[@]}"; do
             result=$(fuser "$f" 2>&1)
             pid=$(echo $result | cut -d ':' -f 2-)
@@ -773,46 +773,63 @@ ldap_initialize() {
 #########################
 ldap_custom_init_scripts() {
     if [[ -f "${LDAP_VOLUME_DIR}/.user_scripts_initialized" ]]; then
-        info "Presence of file ${LDAP_VOLUME_DIR}/.user_scripts_initialized indicates that the user scripts have already been initialized."
+	debug "\tskipping because ${LDAP_VOLUME_DIR}/.user_scripts_initialized exists"
         return 0
     fi
     if is_dir_empty "${LDAP_ENTRYPOINT_INITDB_D_DIR}"; then
-        info "The user's custom files directory ${LDAP_ENTRYPOINT_INITDB_D_DIR} is missing or empty.";
+	debug "\tnone found"
         return 0
     fi
-    info "Loading user's custom files from ${LDAP_ENTRYPOINT_INITDB_D_DIR} ...";
-    if [[ -n $(find "${LDAP_ENTRYPOINT_INITDB_D_DIR}"/ -type f -regex ".*\.\(sh\)") ]]; then
-        for f in "${LDAP_ENTRYPOINT_INITDB_D_DIR}"/*; do
-            case "$f" in
-                *.sh)
-                    if [[ -x "$f" ]]; then
-                        info "\texecuting $f"
-			ret_code=-1
-                        if [[ ! "${SYMAS_DEBUG_SETUP:-}X" = "X" ]]; then
-                            bash -x "$f"
-			    ret_code=$?
-                        else
-                            bash "$f"
-			    ret_code=$?
-                        fi
-                        if [[ $ret_code -ne 0 ]]; then
-                            error "Failed executing $f"
-                            return 1
-                        fi
-                    elif [[ -O "$f" ]]; then
-                        info "\tsourcing $f"
-                        . "$f"
+    read -r -a config_files <<< "$(find "${LDAP_ENTRYPOINT_INITDB_D_DIR}"/ -maxdepth 1 -type f -print0 | xargs -0)"
+    for f in "${config_files[@]}"; do
+	ret_code=-1
+        case "$f" in
+            *.ldif)
+		info "\tslapadd $f"
+		debug_execute slapadd "${slapd_debug_args[@]}" -F "${LDAP_ONLINE_CONF_DIR}" -n 0 -l "$f"
+		ret_code=$?
+                if [[ $ret_code -ne 0 ]]; then
+                    error "failed loading $f ($ret_code)"
+                    return 1
+                fi
+		;;
+            *.sh)
+                if [[ -x "$f" ]]; then
+                    info "\texecuting $f"
+                    if [[ ! "${SYMAS_DEBUG_SETUP:-}X" = "X" ]]; then
+                        bash -x "$f"
+			ret_code=$?
                     else
-                        warn "\tskipping $f because it is not owned by current user ($(id -u)/$(whoami)) and not executable"
+                        bash "$f"
+			ret_code=$?
                     fi
-                    ;;
-                *)
-                    warn "\tskipping $f, supported formats are: .sh"
-                    ;;
-            esac
-        done
-        touch "${LDAP_VOLUME_DIR}"/.user_scripts_initialized
-    fi
+                    if [[ $ret_code -ne 0 ]]; then
+                        error "failed executing $f ($ret_code)"
+                        return 1
+                    fi
+                elif [[ -O "$f" ]]; then
+                    info "\tsourcing $f"
+                    . "$f"
+                else
+                    warn "\tskipping $f because it is not owned by current user ($(id -u)/$(whoami)) and not executable"
+                fi
+                ;;
+            *)
+		if [[ -x "$f" ]]; then
+		    info "\texecuting $f"
+		    exec "$f"
+		    ret_code=$?
+		    if [[ $ret_code -ne 0 ]]; then
+                        error "failed executing $f ($ret_code)"
+                        return 1
+		    fi
+                else
+		    warn "\tskipping $f, not executable or Bash shell (.sh) script"
+                fi
+                ;;
+        esac
+    done
+    touch "${LDAP_VOLUME_DIR}"/.user_scripts_initialized
 }
 
 ########################
