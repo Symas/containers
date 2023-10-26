@@ -1079,7 +1079,7 @@ objectClass: olcSyncProvConfig
 olcOverlay: syncprov
 olcSpCheckpoint: ${LDAP_SYNCPROV_CHECKPOINT}
 EOF
-    if $LDAP_ENABLE_ACCESSLOG; then
+    if is_boolean_yes "${LDAP_ENABLE_ACCESSLOG}"; then
     cat >> "${LDAP_SHARE_DIR}/syncprov_create_overlay_configuration.ldif" << EOF
 olcSpSessionLogSource: $LDAP_SYNCPROV_SESSIONLOG
 EOF
