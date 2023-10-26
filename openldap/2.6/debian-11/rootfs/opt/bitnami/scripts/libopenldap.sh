@@ -35,8 +35,9 @@ export LDAP_SBIN_DIR="${LDAP_BASE_DIR}/sbin"
 export LDAP_CONF_DIR="${LDAP_BASE_DIR}/etc"
 export LDAP_SHARE_DIR="${LDAP_BASE_DIR}/share"
 export LDAP_VAR_DIR="${LDAP_BASE_DIR}/var"
-export LDAP_VOLUME_DIR="/openldap"
+export LDAP_VOLUME_DIR="${LDAP_VOLUME_DIR:-/openldap}"
 export LDAP_DATA_DIR="${LDAP_VOLUME_DIR}/data"
+export LDAP_BACKEND_DATA_DIR="${LDAP_DATA_DIR}/backend"
 export LDAP_ACCESSLOG_DATA_DIR="${LDAP_DATA_DIR}/accesslog"
 export LDAP_ONLINE_CONF_DIR="${LDAP_VOLUME_DIR}/slapd.d"
 export LDAP_PID_FILE="${LDAP_VAR_DIR}/run/slapd.pid"
@@ -391,7 +392,7 @@ olcDbMaxSize: 1073741824
 olcSuffix: ${LDAP_ROOT}
 olcRootDN: cn=Manager,${LDAP_ROOT}
 olcMonitoring: FALSE
-olcDbDirectory: ${LDAP_DATA_DIR}
+olcDbDirectory: ${LDAP_BACKEND_DATA_DIR}
 olcDbIndex: objectClass eq,pres
 olcDbIndex: ou,cn,mail,surname,givenname eq,pres,sub
 
@@ -416,6 +417,7 @@ ldap_create_online_configuration() {
         replace_in_file "${LDAP_SHARE_DIR}/slapd.ldif" "uidNumber=0" "uidNumber=$(id -u)"
         replace_in_file "${LDAP_SHARE_DIR}/slapd.ldif" "gidNumber=0" "gidNumber=$(id -g)"
     fi
+    ensure_dir_exists "$LDAP_BACKEND_DATA_DIR" ${LDAP_DAEMON_USER} ${LDAP_DAEMON_GROUP}
     local -a flags=(-F "$LDAP_ONLINE_CONF_DIR" -n 0 -l "${LDAP_SHARE_DIR}/slapd.ldif")
     if am_i_root; then
         debug_execute run_as_user "$LDAP_DAEMON_USER" slapadd "${slapd_debug_args[@]}" "${flags[@]}"
