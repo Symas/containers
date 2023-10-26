@@ -92,7 +92,7 @@ export LDAP_ACCESSLOG_ADMIN_USERNAME="${LDAP_ACCESSLOG_ADMIN_USERNAME:-admin}"
 export LDAP_ACCESSLOG_ADMIN_DN="${LDAP_ACCESSLOG_ADMIN_USERNAME/#/cn=},${LDAP_ACCESSLOG_DB:-cn=accesslog}"
 export LDAP_ACCESSLOG_ADMIN_PASSWORD="${LDAP_ACCESSLOG_PASSWORD:-accesspassword}"
 export LDAP_ENABLE_SYNCPROV="${LDAP_ENABLE_SYNCPROV:-no}"
-export LDAP_SYNCPROV_CHECKPPOINT="${LDAP_SYNCPROV_CHECKPPOINT:-100 10}"
+export LDAP_SYNCPROV_CHECKPOINT="${LDAP_SYNCPROV_CHECKPOINT:-100 10}"
 export LDAP_SYNCPROV_SESSIONLOG="${LDAP_SYNCPROV_SESSIONLOG:-100}"
 
 # By setting an environment variable matching *_FILE to a file path, the prefixed environment
@@ -377,7 +377,7 @@ olcAccess: to * by dn.base="gidNumber=0+uidNumber=0,cn=peercred,cn=external,cn=a
 dn: olcDatabase=monitor,cn=config
 objectClass: olcDatabaseConfig
 olcDatabase: monitor
-olcAccess: to * by dn.base="gidNumber=0+uidNumber=0,cn=peercred,cn=external,cn=auth" read by dn.base="cn=Manager,dc=${LDAP_ROOT}" read by * none
+olcAccess: to * by dn.base="gidNumber=0+uidNumber=0,cn=peercred,cn=external,cn=auth" read by dn.base="cn=Manager,${LDAP_ROOT}" read by * none
 
 #
 # Backend database definitions
@@ -1075,7 +1075,7 @@ dn: olcOverlay=syncprov,olcDatabase={2}mdb,cn=config
 objectClass: olcOverlayConfig
 objectClass: olcSyncProvConfig
 olcOverlay: syncprov
-olcSpCheckpoint: $LDAP_SYNCPROV_CHECKPOINT
+olcSpCheckpoint: ${LDAP_SYNCPROV_CHECKPOINT}
 EOF
     if $LDAP_ENABLE_ACCESSLOG; then
     cat >> "${LDAP_SHARE_DIR}/syncprov_create_overlay_configuration.ldif" << EOF
