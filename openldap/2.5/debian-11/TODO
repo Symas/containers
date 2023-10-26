@@ -1,0 +1,6 @@
+* We sign our images [Docker Content Trust
+  (DCT)](https://docs.docker.com/engine/security/trust/content_trust/) and you
+  _should_ use `DOCKER_CONTENT_TRUST=1` to verify the integrity of the images.
+
+
+but we also publish to the [GitHub Container Regristry (ghcr)](https://ghcr.io).
