@@ -882,7 +882,7 @@ EOF
 #   None
 #########################
 ldap_load_module() {
-    info "Enable LDAP $2 module from $1"
+    info "Loading module $1/$2"
     cat > "${LDAP_SHARE_DIR}/enable_module_$2.ldif" << EOF
 dn: cn=module,cn=config
 cn: module
@@ -965,16 +965,22 @@ changetype: modify
 add: olcPasswordHash
 EOF
     case "${LDAP_PASSWORD_HASH}" in
-	"{ARGON2}"|argon2)
+	"{ARGON2}")
 	    ldap_load_module "${LDAP_BASE_DIR}/lib/openldap" "argon2.so"
 	    cat >> "${LDAP_SHARE_DIR}/password_hash.ldif" << EOF
-olcPasswordHash: {ARGON2}
+olcPasswordHash: ${LDAP_PASSWORD_HASH}
 EOF
 	    ;;
-	"{CRYPT}"|crypt)
+	"{CRYPT}")
 	    cat >> "${LDAP_SHARE_DIR}/password_hash.ldif" << EOF
-olcPasswordHash: {CRYPT}
+olcPasswordHash: ${LDAP_PASSWORD_HASH}
 olcPasswordCryptSaltFormat: ${LDAP_CRYPT_SALT_FORMAT:-$y$.16s}
+EOF
+	    ;;
+	"{SHA256}"|"{SHA384}"|"{SHA512}"|"{SSHA256}"|"{SSHA384}"|"{SSHA512}")
+	    ldap_load_module "${LDAP_BASE_DIR}/lib/openldap" "pw-sha2.so"
+	    cat >> "${LDAP_SHARE_DIR}/password_hash.ldif" << EOF
+olcPasswordHash: ${LDAP_PASSWORD_HASH}
 EOF
 	    ;;
 	*)
