@@ -25,7 +25,7 @@ trap 'setup_failure' 1 2 3 13 15
 # Load LDAP environment variables
 eval "$(ldap_env)"
 
-if [ ! "${SYMAS_DEBUG_SETUP:-}X" = "X" ]; then
+if is_boolean_yes "${SYMAS_DEBUG_SETUP:-}"; then
     set -x
 fi
 

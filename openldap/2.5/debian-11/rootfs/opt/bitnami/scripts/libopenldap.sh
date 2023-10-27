@@ -796,7 +796,7 @@ ldap_custom_init_scripts() {
             *.sh)
                 if [[ -x "$f" ]]; then
                     info "\texecuting $f"
-                    if [[ ! "${SYMAS_DEBUG_SETUP:-}X" = "X" ]]; then
+                    if is_boolean_yes "${SYMAS_DEBUG_SETUP:-}"; then
                         bash -x "$f"
 			ret_code=$?
                     else
@@ -809,7 +809,7 @@ ldap_custom_init_scripts() {
                     fi
                 elif [[ -O "$f" ]]; then
                     info "\tsourcing $f"
-                    . "$f"
+                    source "$f"
                 else
                     warn "\tskipping $f because it is not owned by current user ($(id -u)/$(whoami)) and not executable"
                 fi

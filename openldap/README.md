@@ -290,9 +290,10 @@ There are three environment variables useful when debugging your container's con
    output, setting to `0` is the minimum.
  * `SYMAS_DEBUG` - either `yes|no` or `true|false`, when enabled output from
    commands like `slapadd` are not redirected to `/dev/null` during setup.
- * `SYMAS_DEBUG_SETUP` - either unset, or `yes` which will add `set -x` within
-   the Bash scripts that perform setup and output all executed commands to help
-   understand what exactly happened when there are errors during configuration.
+ * `SYMAS_DEBUG_SETUP` - either `yes|no` or `true|false`, when enabled this will
+   `set -x` within the Bash scripts that perform setup and output all executed
+   commands to help understand what exactly happened when there are errors
+   during configuration.
 
 First try:
 ```-e SYMAS_DEBUG=false -e LDAP_LOGLEVEL=0 -e SYMAS_DEBUG_SETUP=yes```
@@ -301,6 +302,14 @@ to expose the commands executed by the setup scripts without much noise from
 
 Then, to debug `ldif` and other OpenLDAP configuration try:
 ```-e SYMAS_DEBUG=true -e LDAP_LOGLEVEL=-1```
+
+Additional information is available in our [knowledge
+base](https://kb.symas.com/), on the [OpenLDAP site](https://openldap.org/), in
+the [documentation](https://openldap.org/doc/), the [quick start
+guide](https://openldap.org/doc/admin26/quickstart.html), and the detailed
+[manual pages](https://openldap.org/software/man.cgi). [What we
+publish](https://repo.symas.com) is what we provide inside this
+[container](https://github.com/symas/containers); everything is open-source.
 
 ## Maintenance
 

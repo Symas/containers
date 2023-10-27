@@ -8,19 +8,10 @@
 
 ## How to contact Symas for commercial support
 
-Should you encounter issues when using this container, please try running with
-`SYMAS_DEBUG` set to `true` and `LDAP_LOGLEVEL` set to `256` (or `-1` to output
-all messages, or other value that suits your needs). Setting `SYMAS_DEBUG_SETUP`
-to `yes` will output each Bash command (`set -x`) during the setup
-phase. Additional information is available in our [knowledge
-base](https://kb.symas.com/), on the [OpenLDAP site](https://openldap.org/), in
-the [documentation](https://openldap.org/doc/), the [quick start
-guide](https://openldap.org/doc/admin26/quickstart.html), and the detailed
-[manual pages](https://openldap.org/software/man.cgi). [What we
-publish](https://repo.symas.com) is what we provide inside this
-[container](https://github.com/symas/containers); everything is open-source.
-
-Of course, you can always call us at: +1.650.963.7601 or email [sales](mailto:sales@symas.com) or [support](mailto:support@symas.com) teams directly with questions.  More on our support offerings can be [found on our website](https://www.symas.com/symas-tech-support).
+You can always call us at: +1.650.963.7601 or email
+[sales](mailto:sales@symas.com) or [support](mailto:support@symas.com) teams
+directly with questions.  More on our support offerings can be [found on our
+website](https://www.symas.com/symas-tech-support).
 
 Reach out to us, we're here to help.
 
