@@ -24,6 +24,9 @@ ENV HOME="/" \
     OS_FLAVOUR="debian-11" \
     OS_NAME="linux"
 
+# Debian
+ARG DEBIAN=11 CODENAME=bullseye
+
 COPY prebuildfs /
 # SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -56,10 +59,10 @@ COPY prebuildfs /
 RUN groupadd --gid 1001 ${LDAP_DAEMON_GROUP:-slapd}
 RUN useradd --system --gid 1001 --uid 1001 --groups root ${LDAP_DAEMON_USER:-slapd}
 
-RUN install_packages ca-certificates curl gnupg libcap2-bin libcom-err2 libcrypt1 libkeyutils1 libltdl7 libnsl2 libnss3-tools libodbc1 libperl5.32 libtirpc3 libwrap0 mdbtools procps psmisc
+RUN install_packages ca-certificates libcap2-bin libcom-err2 libcrypt1 libkeyutils1 libltdl7 libnsl2 libnss3-tools libodbc1 libperl5.32 libtirpc3 libwrap0 mdbtools procps psmisc curl
 
 # Configure the Symas Debian package repositories.
-ARG DEBIAN=11 CODENAME=bullseye TRAIN=release VERSION=26
+ARG TRAIN=release VERSION=26
 #RUN curl -SsLf https://repo.symas.com/configs/SOLDAP/d${DEBIAN}/${TRAIN}${VERSION}.list -o /etc/apt/sources.list.d/soldap-${TRAIN}${VERSION}.list \
 RUN echo "deb [signed-by=/usr/share/keyrings/symas-key.asc] https://repo.symas.com/repo/deb/main/release${VERSION} ${CODENAME} main" | tee -a /etc/apt/sources.list.d/soldap-release${VERSION}.list \
     && curl -SsLf https://repo.symas.com/repo/gpg/RPM-GPG-KEY-symas-com-signing-key -o /usr/share/keyrings/symas-key.asc \
@@ -68,7 +71,14 @@ RUN echo "deb [signed-by=/usr/share/keyrings/symas-key.asc] https://repo.symas.c
 # Install OpenLDAP, ldap-utils and ssl-tools.
 RUN install_packages symas-openldap-clients symas-openldap-server
 
-RUN apt-get autoremove --purge -y curl gnupg && \
+# Update zlib1g
+RUN echo "Explanation: Don't use testing by default\nPackage: *\nPin: release a=testing\nPin-Priority: 1\n" > /etc/apt/preferences.d/testing && \
+    echo "deb http://deb.debian.org/debian testing main non-free contrib" >> /etc/apt/sources.list && \
+    DEBIAN_FRONTEND=noninteractive apt update -qq && \
+    apt-get install -t testing zlib1g
+
+# Cleanup the cruft
+RUN apt-get autoremove --purge -y curl file openssl && \
     apt-get update && apt-get upgrade -y && \
     apt-get clean && rm -rf /var/lib/apt/lists /var/cache/apt/archives
 RUN chmod g+rwX /opt/bitnami

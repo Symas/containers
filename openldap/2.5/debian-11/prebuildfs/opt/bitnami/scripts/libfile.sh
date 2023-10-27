@@ -57,7 +57,7 @@ replace_in_file_multiline() {
 
     local result
     local -r del=$'\001' # Use a non-printable character as a 'sed' delimiter to avoid issues
-    result="$(perl -pe "BEGIN{undef $/;} s${del}${match_regex}${del}${substitute_regex}${del}sg" "$filename")"
+    result="$(sed -i "s${del}${match_regex}${del}${substitute_regex}${del}sg" "$filename")"
     echo "$result" > "$filename"
 }
 

@@ -284,7 +284,23 @@ docker logs openldap
 
 You can configure the containers [logging driver](https://docs.docker.com/engine/admin/logging/overview/) using the `--log-driver` option if you wish to consume the container logs differently. In the default configuration docker uses the `json-file` driver.
 
-To see the actual output of the various commands used during setup as well as slapd in the container's logs, set the environment variable `SYMAS_DEBUG=true`. Useful especially to find/debug problems in your configuration that lead to errors causing OpenLDAP not to start.
+There are three environment variables useful when debugging your container's configuration.
+
+ * `LDAP_LOGLEVEL` - Default is `256`, setting to `-1` enables all logging
+   output, setting to `0` is the minimum.
+ * `SYMAS_DEBUG` - either `yes|no` or `true|false`, when enabled output from
+   commands like `slapadd` are not redirected to `/dev/null` during setup.
+ * `SYMAS_DEBUG_SETUP` - either unset, or `yes` which will add `set -x` within
+   the Bash scripts that perform setup and output all executed commands to help
+   understand what exactly happened when there are errors during configuration.
+
+First try:
+```-e SYMAS_DEBUG=false -e LDAP_LOGLEVEL=0 -e SYMAS_DEBUG_SETUP=yes```
+to expose the commands executed by the setup scripts without much noise from
+`slapd` etc.
+
+Then, to debug `ldif` and other OpenLDAP configuration try:
+```-e SYMAS_DEBUG=true -e LDAP_LOGLEVEL=-1```
 
 ## Maintenance
 
