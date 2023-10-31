@@ -7,14 +7,14 @@
 FROM ${ARCH}docker.io/bitnami/minideb:bullseye
 
 ARG TARGETARCH
-ARG NOW
+ARG NOW BUILD
 
 LABEL \
       org.opencontainers.image.base.name="docker.io/bitnami/minideb:bullseye" \
       org.opencontainers.image.created="${NOW}" \
       org.opencontainers.image.description="Application packaged by Symas Corp." \
       org.opencontainers.image.licenses="Apache-2.0" \
-      org.opencontainers.image.ref.name="2.5.16-debian-11-r57" \
+      org.opencontainers.image.ref.name="2.5.16-debian-11-r${BUILD}" \
       org.opencontainers.image.title="openldap" \
       org.opencontainers.image.vendor="Symas Corp." \
       org.opencontainers.image.version="2.5.16"
@@ -28,7 +28,6 @@ ENV HOME="/" \
 ARG DEBIAN=11 CODENAME=bullseye
 
 COPY prebuildfs /
-# SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # Install required system packages and dependencies
 
