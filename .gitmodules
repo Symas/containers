@@ -1,0 +1,3 @@
+[submodule "syncmonitor"]
+	path = syncmonitor
+	url = https://git.openldap.org/gburd/syncmonitor.git

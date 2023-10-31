@@ -1,0 +1,22 @@
+# Don't track git
+.git/*
+.github/*
+.gitignore
+.gitattributes
+
+# Don't track changes to the Dockerfile, triggering a rebuild without cache
+Dockerfile
+.dockerignore
+
+# Don't track docs
+*.md
+LICENSE
+CHANGELOG.md
+README.md
+docs/*
+
+# Various config files that shouldn't be tracked
+.env
+.envrc
+shell.nix
+

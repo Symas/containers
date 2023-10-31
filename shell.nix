@@ -16,6 +16,9 @@ mkShell {
     python311Packages.pip.out
     python311Packages.rbtools
     pipx
+    openldap
+    man-pages
+    man-pages-posix
   ];
   shellHook = ''
     alias gitc="git -c user.email=gburd@symas.com commit --gpg-sign=1FC1E7793410DE46 ."
