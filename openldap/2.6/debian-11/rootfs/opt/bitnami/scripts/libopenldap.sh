@@ -417,10 +417,10 @@ ldap_create_online_configuration() {
         replace_in_file "${LDAP_SHARE_DIR}/slapd.ldif" "uidNumber=0" "uidNumber=$(id -u)"
         replace_in_file "${LDAP_SHARE_DIR}/slapd.ldif" "gidNumber=0" "gidNumber=$(id -g)"
     fi
-    ensure_dir_exists "$LDAP_BACKEND_DATA_DIR" ${LDAP_DAEMON_USER} ${LDAP_DAEMON_GROUP}
-    local -a flags=(-F "$LDAP_ONLINE_CONF_DIR" -n 0 -l "${LDAP_SHARE_DIR}/slapd.ldif")
+    ensure_dir_exists "${LDAP_BACKEND_DATA_DIR}" ${LDAP_DAEMON_USER} ${LDAP_DAEMON_GROUP}
+    local -a flags=(-F "${LDAP_ONLINE_CONF_DIR}" -n 0 -l "${LDAP_SHARE_DIR}/slapd.ldif")
     if am_i_root; then
-        debug_execute run_as_user "$LDAP_DAEMON_USER" slapadd "${slapd_debug_args[@]}" "${flags[@]}"
+        debug_execute run_as_user "${LDAP_DAEMON_USER}" slapadd "${slapd_debug_args[@]}" "${flags[@]}"
     else
         debug_execute slapadd "${slapd_debug_args[@]}" "${flags[@]}"
     fi
@@ -517,7 +517,7 @@ ldap_add_schemas() {
         if [ ! -f "${LDAP_CONF_DIR}/schema/${schema}.ldif" ]; then
             error "Extra schema ${schema} does not exist at ${LDAP_CONF_DIR}/schema/${schema}.ldif"
         fi
-        debug_execute ldapadd "${slapd_debug_args[@]}" -Y EXTERNAL -H "$LDAP_LDAPI_URI" -f "${LDAP_CONF_DIR}/schema/${schema}.ldif"
+	slapadd_ldif "${schema}.ldif" "${LDAP_CONF_DIR}/schema}"
     done
 }
 
@@ -532,10 +532,7 @@ ldap_add_schemas() {
 #########################
 ldap_add_custom_schema() {
     info "Adding custom Schema from ${LDAP_CUSTOM_SCHEMA_FILE} ..."
-    debug_execute slapadd "${slapd_debug_args[@]}" -F "$LDAP_ONLINE_CONF_DIR" -n 0 -l  "$LDAP_CUSTOM_SCHEMA_FILE"
-    ldap_stop
-    while is_ldap_running; do sleep 1; done
-    ldap_start_bg
+    slapadd_ldif "${LDAP_CUSTOM_SCHEMA_FILE}"
 }
 
 ########################
@@ -551,11 +548,8 @@ ldap_add_custom_schemas() {
     info "Adding custom schemas in ${LDAP_CUSTOM_SCHEMA_DIR} ..."
     for schema in $(find "$LDAP_CUSTOM_SCHEMA_DIR" -maxdepth 1 \( -type f -o -type l \) -iname '*.ldif' -print | sort); do
         info "\t${schema}"
-        debug_execute slapadd "${slapd_debug_args[@]}" -F "${LDAP_ONLINE_CONF_DIR}" -n 0 -l "${schema}"
+	slapadd_ldif "${schema}"
     done
-    ldap_stop
-    while is_ldap_running; do sleep 1; done
-    ldap_start_bg
 }
 
 ########################
@@ -631,7 +625,7 @@ member: ${user/#/cn=},${LDAP_USER_DC/#/ou=},${LDAP_ROOT}
 EOF
     done
 
-    debug_execute ldapadd "${slapd_debug_args[@]}" -f "${LDAP_SHARE_DIR}/tree.ldif" -H "$LDAP_LDAPI_URI" -D "$LDAP_ADMIN_DN" -w "$LDAP_ADMIN_PASSWORD"
+    slapadd_ldif "tree.ldif" "${LDAP_SHARE_DIR}"
 }
 
 ########################
@@ -646,9 +640,9 @@ EOF
 ldap_add_custom_ldifs() {
     warn "Ignoring LDAP_USERS, LDAP_PASSWORDS, LDAP_USER_DC and LDAP_GROUP environment variables..."
     info "Loading custom LDIF files..."
-    for ldif in $(find "$LDAP_CUSTOM_LDIF_DIR" -maxdepth 1 \( -type f -o -type l \) -iname '*.ldif' -print | sort); do
+    for ldif in $(find "${LDAP_CUSTOM_LDIF_DIR}" -maxdepth 1 \( -type f -o -type l \) -iname '*.ldif' -print | sort); do
         info "\t${ldif}"
-        debug_execute ldapadd -f "${ldif}" -H "${LDAP_LDAPI_URI}" -D "${LDAP_ADMIN_DN}" -w "${LDAP_ADMIN_PASSWORD}"
+	slapadd_ldif "${ldif}"
     done
 }
 
@@ -707,7 +701,6 @@ ldap_initialize() {
 
         # Create OpenLDAP online configuration
         ldap_create_online_configuration
-        ldap_start_bg
         ldap_admin_credentials
         info "Setting up optional config..."
         if ! is_boolean_yes "$LDAP_ALLOW_ANON_BINDING"; then
@@ -786,7 +779,7 @@ ldap_custom_init_scripts() {
         case "$f" in
             *.ldif)
 		info "\tslapadd $f"
-		debug_execute slapadd "${slapd_debug_args[@]}" -F "${LDAP_ONLINE_CONF_DIR}" -n 0 -l "$f"
+		slapadd_ldif "$f"
 		ret_code=$?
                 if [[ $ret_code -ne 0 ]]; then
                     error "failed loading $f ($ret_code)"
@@ -907,16 +900,7 @@ objectClass: olcModuleList
 olcModulePath: $1
 olcModuleLoad: $2
 EOF
-    if is_ldap_running; then
-        debug_execute ldapadd "${slapd_debug_args[@]}" -Y EXTERNAL -H "$LDAP_LDAPI_URI" -f "${LDAP_SHARE_DIR}/enable_module_$2.ldif"
-    else
-        local -a flags=(-F "$LDAP_ONLINE_CONF_DIR" -n 0 -l "${LDAP_SHARE_DIR}/enable_module_$2.ldif")
-        if am_i_root; then
-            debug_execute run_as_user "$LDAP_DAEMON_USER" slapadd "${slapd_debug_args[@]}" "${flags[@]}"
-        else
-            debug_execute slapadd "${slapd_debug_args[@]}" "${flags[@]}"
-        fi
-    fi
+    slapadd_ldif "${LDAP_SHARE_DIR}/enable_module_${2}.ldif" "${LDAP_ONLINE_CONF_DIR}"
 }
 
 ########################
@@ -938,7 +922,7 @@ objectClass: olcOverlayConfig
 objectClass: olcPPolicyConfig
 olcOverlay: {0}ppolicy
 EOF
-    debug_execute ldapadd "${slapd_debug_args[@]}" -Q -Y EXTERNAL -H "$LDAP_LDAPI_URI" -f "${LDAP_SHARE_DIR}/ppolicy_create_configuration.ldif"
+    slapadd_ldif "${LDAP_SHARE_DIR}/ppolicy_create_configuration.ldif"
     # enable ppolicy_hash_cleartext
     if is_boolean_yes "$LDAP_PPOLICY_HASH_CLEARTEXT"; then
         info "Enabling ppolicy_hash_cleartext"
@@ -1062,7 +1046,7 @@ olcDbIndex: default eq
 olcDbIndex: entryCSN,objectClass,reqEnd,reqResult,reqStart
 EOF
     mkdir "${LDAP_ACCESSLOG_DATA_DIR}"
-    debug_execute ldapadd "${slapd_debug_args[@]}" -Q -Y EXTERNAL -H "$LDAP_LDAPI_URI" -f "${LDAP_SHARE_DIR}/accesslog_create_accesslog_database.ldif"
+    slapadd_ldif "${LDAP_SHARE_DIR}/accesslog_create_accesslog_database.ldif"
     # Add AccessLog overlay
     cat > "${LDAP_SHARE_DIR}/accesslog_create_overlay_configuration.ldif" << EOF
 dn: olcOverlay=accesslog,olcDatabase={2}mdb,cn=config
@@ -1077,7 +1061,7 @@ olcAccessLogOld: $LDAP_ACCESSLOG_LOGOLD
 olcAccessLogOldAttr: $LDAP_ACCESSLOG_LOGOLDATTR
 EOF
     info "adding accesslog_create_overlay_configuration.ldif"
-    debug_execute ldapadd "${slapd_debug_args[@]}" -Q -Y EXTERNAL -H "$LDAP_LDAPI_URI" -f "${LDAP_SHARE_DIR}/accesslog_create_overlay_configuration.ldif"
+    slapadd_ldif "${LDAP_SHARE_DIR}/accesslog_create_overlay_configuration.ldif"
 }
 
 ########################
@@ -1111,7 +1095,25 @@ EOF
 olcSpSessionLog: $LDAP_SYNCPROV_SESSIONLOG
 EOF
 fi
-    debug_execute ldapadd "${slapd_debug_args[@]}" -Q -Y EXTERNAL -H "$LDAP_LDAPI_URI" -f "${LDAP_SHARE_DIR}/syncprov_create_overlay_configuration.ldif"
+    slapadd_ldif "${LDAP_SHARE_DIR}/syncprov_create_overlay_configuration.ldif"
+}
+
+########################
+# Execute slapadd with predictable arguments
+# Globals:
+#   LDAP_*
+# Arguments:
+#   The full path to an LDIF file to load into config database 0
+# Returns:
+#   None
+#########################
+slapadd_ldif() {
+    local -a flags=(-F "${2:-${LDAP_ONLINE_CONF_DIR}}" -n 0 -l "$1")
+    if am_i_root; then
+        debug_execute run_as_user "${LDAP_DAEMON_USER}" slapadd "${slapd_debug_args[@]}" "${flags[@]}"
+    else
+        debug_execute slapadd "${slapd_debug_args[@]}" "${flags[@]}"
+    fi
 }
 
 ########################
