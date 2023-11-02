@@ -527,6 +527,7 @@ ldap_add_schemas() {
 #########################
 ldap_add_custom_schema() {
     info "Adding custom schema from ${LDAP_CUSTOM_SCHEMA_FILE} ..."
+        info "\t${LDAP_CUSTOM_SCHEMA_FILE}"
     slapadd_ldif "${LDAP_CUSTOM_SCHEMA_FILE}"
 }
 
@@ -1112,12 +1113,12 @@ fi
 #   None
 #########################
 slapadd_ldif() {
-    local -a flags=(-F "${2:-${LDAP_ONLINE_CONF_DIR}}" -n 0 -l "$1") # -b "${3:-cn=config}"
+    local -a flags=("${slapd_debug_args[@]}" -F "${2:-${LDAP_ONLINE_CONF_DIR}}" -n 0 -l "$1") # -b "${3:-cn=config}"
     if [ $# -ge 2 ]; then set -- "${@:2}"; else set -- "${@:1}"; fi
     if am_i_root; then
-        debug_execute run_as_user "${LDAP_DAEMON_USER}" slapadd "${slapd_debug_args[@]}" "${flags[@]}" ${[@]}
+        debug_execute run_as_user "${LDAP_DAEMON_USER}" slapadd "${flags[@]}" ${@}
     else
-        debug_execute slapadd "${slapd_debug_args[@]}" "${flags[@]}"
+        debug_execute slapadd "${flags[@]}" ${@}
     fi
 }
 
