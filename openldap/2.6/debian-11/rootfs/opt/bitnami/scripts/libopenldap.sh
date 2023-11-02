@@ -44,6 +44,7 @@ export LDAP_PID_FILE="${LDAP_VAR_DIR}/run/slapd.pid"
 export LDAP_CUSTOM_LDIF_DIR="${LDAP_CUSTOM_LDIF_DIR:-/ldifs}"
 export LDAP_CUSTOM_SCHEMA_FILE="${LDAP_CUSTOM_SCHEMA_FILE:-/schema/custom.ldif}"
 export LDAP_CUSTOM_SCHEMA_DIR="${LDAP_CUSTOM_SCHEMA_DIR:-/schemas}"
+export LDAP_SYSLOG_LOG_FORMAT="${LDAP_SYSLOG_LOG_FORMAT:-yes}"
 export PATH="${LDAP_BIN_DIR}:${LDAP_SBIN_DIR}:$PATH"
 export LDAP_TLS_CERT_FILE="${LDAP_TLS_CERT_FILE:-}"
 export LDAP_TLS_KEY_FILE="${LDAP_TLS_KEY_FILE:-}"
@@ -495,6 +496,38 @@ EOF
     ldapmodify_ldif "${LDAP_SHARE_DIR}/disable_anon_bind.ldif" -Y EXTERNAL
 }
 
+
+########################
+# Configure syslog format for debug log output
+# Globals:
+#   LDAP_*
+# Arguments:
+#   None
+# Returns:
+#   None
+#########################
+ldap_syslog_log_format() {
+    info "Enable Syslog/UTC log output"
+    cat > "${LDAP_SHARE_DIR}/enable_syslog_format.ldif" << EOF
+
+dn: cn=config
+changetype: modify
+replace: olcLogFileFormat
+olcLogFileFormat: syslog-utc
+
+dn: cn=config
+changetype: modify
+replace: olcLogFile
+olcLogFile: /dev/fd/2
+
+dn: cn=config
+changetype: modify
+replace: olcLogFileOnly
+olcLogFileOnly: TRUE
+EOF
+    ldapmodify_ldif "${LDAP_SHARE_DIR}/enable_syslog_format.ldif" -Y EXTERNAL
+}
+
 ########################
 # Add LDAP schemas
 # Globals:
@@ -505,7 +538,7 @@ EOF
 #   None
 #########################
 ldap_add_schemas() {
-    info "Adding LDAP extra schemas ${LDAP_EXTRA_SCHEMAS} ..."
+    info "Adding extra schemas ${LDAP_EXTRA_SCHEMAS} ..."
     read -r -a schemas <<< "$(tr ',;' ' ' <<< "${LDAP_EXTRA_SCHEMAS}")"
     for schema in "${schemas[@]}"; do
         info "\t${LDAP_CONF_DIR}/schema/${schema}.ldif"
@@ -526,9 +559,8 @@ ldap_add_schemas() {
 #   None
 #########################
 ldap_add_custom_schema() {
-    info "Adding custom Schema from ${LDAP_CUSTOM_SCHEMA_FILE} ..."
+    info "Adding custom schema from ${LDAP_CUSTOM_SCHEMA_FILE} ..."
     slapadd_ldif "${LDAP_CUSTOM_SCHEMA_FILE}"
-#    ldap_stop; while is_ldap_running; do sleep 1; done; ldap_start_bg
 }
 
 ########################
@@ -546,7 +578,6 @@ ldap_add_custom_schemas() {
         info "\t${schema}"
         slapadd_ldif "${schema}"
     done
-#    ldap_stop; while is_ldap_running; do sleep 1; done; ldap_start_bg
 }
 
 ########################
@@ -699,6 +730,9 @@ ldap_initialize() {
         # Create OpenLDAP online configuration
         ldap_create_online_configuration
         ldap_start_bg
+	if is_boolean_yes "$LDAP_SYSLOG_LOG_FORMAT"; then
+            ldap_syslog_log_format
+        fi
         ldap_admin_credentials
         info "Setting up optional config..."
         if ! is_boolean_yes "$LDAP_ALLOW_ANON_BINDING"; then
