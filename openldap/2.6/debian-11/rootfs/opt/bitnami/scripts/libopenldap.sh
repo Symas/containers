@@ -1148,11 +1148,10 @@ fi
 #   None
 #########################
 slapadd_ldif() {
-    local argv=( "$@" )
-    argv=( "${argv[@]:2:$#}" )
     local -a flags=(-F "${2:-${LDAP_ONLINE_CONF_DIR}}" -n 0 -l "$1") # -b "${3:-cn=config}"
+    if [ $# -ge 2 ]; then set -- "${@:2}"; else set -- "${@:1}"; fi
     if am_i_root; then
-        debug_execute run_as_user "${LDAP_DAEMON_USER}" slapadd "${slapd_debug_args[@]}" "${flags[@]}" ${argv[@]}
+        debug_execute run_as_user "${LDAP_DAEMON_USER}" slapadd "${slapd_debug_args[@]}" "${flags[@]}" ${@}
     else
         debug_execute slapadd "${slapd_debug_args[@]}" "${flags[@]}"
     fi
