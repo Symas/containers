@@ -505,7 +505,7 @@ EOF
 #   None
 #########################
 ldap_add_schemas() {
-    info "Adding LDAP extra schemas ${LDAP_EXTRA_SCHEMAS} ..."
+    info "Adding extra schemas ${LDAP_EXTRA_SCHEMAS} ..."
     read -r -a schemas <<< "$(tr ',;' ' ' <<< "${LDAP_EXTRA_SCHEMAS}")"
     for schema in "${schemas[@]}"; do
         info "\t${LDAP_CONF_DIR}/schema/${schema}.ldif"
@@ -526,9 +526,8 @@ ldap_add_schemas() {
 #   None
 #########################
 ldap_add_custom_schema() {
-    info "Adding custom Schema from ${LDAP_CUSTOM_SCHEMA_FILE} ..."
+    info "Adding custom schema from ${LDAP_CUSTOM_SCHEMA_FILE} ..."
     slapadd_ldif "${LDAP_CUSTOM_SCHEMA_FILE}"
-#    ldap_stop; while is_ldap_running; do sleep 1; done; ldap_start_bg
 }
 
 ########################
@@ -546,7 +545,6 @@ ldap_add_custom_schemas() {
         info "\t${schema}"
         slapadd_ldif "${schema}"
     done
-#    ldap_stop; while is_ldap_running; do sleep 1; done; ldap_start_bg
 }
 
 ########################
@@ -772,6 +770,7 @@ ldap_custom_init_scripts() {
         return 0
     fi
     read -r -a config_files <<< "$(find "${LDAP_ENTRYPOINT_INITDB_D_DIR}"/ -maxdepth 1 -type f -print0 | xargs -0)"
+    readarray -t config_files < <(printf '%s\0' "${config_files[@]}" | sort -z | xargs -0n1)
     for f in "${config_files[@]}"; do
         ret_code=-1
         case "$f" in

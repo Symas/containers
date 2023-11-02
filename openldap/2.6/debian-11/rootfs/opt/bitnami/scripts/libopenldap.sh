@@ -806,6 +806,7 @@ ldap_custom_init_scripts() {
         return 0
     fi
     read -r -a config_files <<< "$(find "${LDAP_ENTRYPOINT_INITDB_D_DIR}"/ -maxdepth 1 -type f -print0 | xargs -0)"
+    readarray -t config_files < <(printf '%s\0' "${config_files[@]}" | sort -z | xargs -0n1)
     for f in "${config_files[@]}"; do
         ret_code=-1
         case "$f" in
