@@ -311,6 +311,48 @@ guide](https://openldap.org/doc/admin26/quickstart.html), and the detailed
 publish](https://repo.symas.com) is what we provide inside this
 [container](https://github.com/symas/containers); everything is open-source.
 
+### Log Levels
+| Level | Keyword | Description |
+| ----- | ------- | ----------- |
+| -1 | any	| enable all debugging |
+| 0	| 	no debugging |
+| 1 |	(`0x1` trace)	| trace function calls |
+| 2	| (`0x2` packets)	| debug packet handling |
+| 4	| (`0x4` args)	| heavy trace debugging |
+| 8	| (`0x8` conns)	| connection management |
+| 16	| (`0x10` BER)	| print out packets sent and received |
+| 32	| (`0x20` filter)	| search filter processing |
+| 64	| (`0x40` config)	| configuration processing |
+| 128	| (`0x80` ACL)	| access control list processing |
+| 256	| (`0x100` stats)	| stats log connections/operations/results |
+| 512	| (`0x200` stats2)	| stats log entries sent |
+| 1024	| (`0x400` shell)	| print communication with shell backends |
+| 2048	| (`0x800` parse)	| print entry parsing debugging |
+| 16384	| (`0x4000` sync)	| syncrepl consumer processing |
+| 32768	| (`0x8000` none)	| only messages that get logged whatever log level is set |
+
+The desired log level can be input as a single integer that combines the
+(bitwise ORed) desired levels, both in decimal or in hexadecimal notation, as a
+list of integers (ORed internally), or as a list of the names shown between
+brackets, such that:
+
+ * `loglevel 129`
+ * `loglevel 0x81`
+ * `loglevel 128 1`
+ * `loglevel 0x80 0x1`
+ * `loglevel acl trace`
+
+are equivalent.
+
+**Examples** :
+
+* `loglevel -1`: this will enable all log levels.
+* `floglevel conns filter`: just log the connection and search filter processing.
+* `loglevel none`: log those messages configured without loglevel, this differs
+from setting the log level to 0, when no logging occurs, as it requires at least
+the `None` level to have high priority messages logged.
+* `loglevel stats`: basic stats logging, the default.
+
 ## Maintenance
 
 ### Upgrade this image
