@@ -527,8 +527,7 @@ ldap_add_schemas() {
 #########################
 ldap_add_custom_schema() {
     info "Adding custom schema from ${LDAP_CUSTOM_SCHEMA_FILE} ..."
-        info "\t${LDAP_CUSTOM_SCHEMA_FILE}"
-    slapadd_ldif "${LDAP_CUSTOM_SCHEMA_FILE}"
+    ldapadd_ldif "${LDAP_CUSTOM_SCHEMA_FILE}" -Y EXTERNAL
 }
 
 ########################
@@ -544,7 +543,7 @@ ldap_add_custom_schemas() {
     info "Adding custom schemas in ${LDAP_CUSTOM_SCHEMA_DIR} ..."
     for schema in $(find "$LDAP_CUSTOM_SCHEMA_DIR" -maxdepth 1 \( -type f -o -type l \) -iname '*.ldif' -print | sort); do
         info "\t${schema}"
-        slapadd_ldif "${schema}"
+        ldapadd_ldif "${schema}" -Y EXTERNAL
     done
 }
 
@@ -762,10 +761,6 @@ ldap_initialize() {
 #   None
 #########################
 ldap_custom_init_scripts() {
-    if [[ -f "${LDAP_VOLUME_DIR}/.user_scripts_initialized" ]]; then
-        debug "\tskipping because ${LDAP_VOLUME_DIR}/.user_scripts_initialized exists"
-        return 0
-    fi
     if is_dir_empty "${LDAP_ENTRYPOINT_INITDB_D_DIR}"; then
         debug "\tnone found"
         return 0
@@ -775,7 +770,16 @@ ldap_custom_init_scripts() {
     for f in "${config_files[@]}"; do
         ret_code=-1
         case "$f" in
-            *.ldif)
+            *modify*.ldif)
+                info "\tslapmodify $f"
+                slapmodify_ldif "$f"
+                ret_code=$?
+                if [[ $ret_code -ne 0 ]]; then
+                    error "failed loading $f ($ret_code)"
+                    return 1
+                fi
+                ;;
+            *add*.ldif|*.ldif)
                 info "\tslapadd $f"
                 slapadd_ldif "$f"
                 ret_code=$?
@@ -820,7 +824,6 @@ ldap_custom_init_scripts() {
                 ;;
         esac
     done
-    touch "${LDAP_VOLUME_DIR}"/.user_scripts_initialized
 }
 
 ########################
@@ -902,7 +905,7 @@ EOF
     if is_ldap_running; then
         ldapadd_ldif "${LDAP_SHARE_DIR}/enable_module_${2}.ldif" -Y EXTERNAL
     else
-        slapadd_ldif "${LDAP_SHARE_DIR}/enable_module_${2}.ldif" "${LDAP_ONLINE_CONF_DIR}" -Y EXTERNAL
+        slapadd_ldif "${LDAP_SHARE_DIR}/enable_module_${2}.ldif" "${LDAP_ONLINE_CONF_DIR}"
     fi
 }
 
@@ -1113,12 +1116,32 @@ fi
 #   None
 #########################
 slapadd_ldif() {
-    local -a flags=("${slapd_debug_args[@]}" -F "${2:-${LDAP_ONLINE_CONF_DIR}}" -n 0 -l "$1") # -b "${3:-cn=config}"
+    local -a flags=(-F "${2:-${LDAP_ONLINE_CONF_DIR}}" -n 0 -l "$1") # -b "${3:-cn=config}"
     if [ $# -ge 2 ]; then set -- "${@:2}"; else set -- "${@:1}"; fi
     if am_i_root; then
-        debug_execute run_as_user "${LDAP_DAEMON_USER}" slapadd "${flags[@]}" ${@}
+        debug_execute run_as_user "${LDAP_DAEMON_USER}" slapadd "${slapd_debug_args[@]}" "${flags[@]}" ${@}
     else
-        debug_execute slapadd "${flags[@]}" ${@}
+        debug_execute slapadd "${slapd_debug_args[@]}" "${flags[@]}"
+    fi
+}
+
+########################
+# Execute slapmodify with predictable arguments
+# Globals:
+#   LDAP_*
+# Arguments:
+#   The full path to an LDIF file to load
+#   The config dir, defaults to LDAP_ONLINE_CONF_DIR
+# Returns:
+#   None
+#########################
+slapmodify_ldif() {
+    local -a flags=(-F "${2:-${LDAP_ONLINE_CONF_DIR}}" -n 0 -l "$1") # -b "${3:-cn=config}"
+    if [ $# -ge 2 ]; then set -- "${@:2}"; else set -- "${@:1}"; fi
+    if am_i_root; then
+        debug_execute run_as_user "${LDAP_DAEMON_USER}" slapmodify "${slapd_debug_args[@]}" "${flags[@]}" ${@}
+    else
+        debug_execute slapmodify "${slapd_debug_args[@]}" "${flags[@]}"
     fi
 }
 

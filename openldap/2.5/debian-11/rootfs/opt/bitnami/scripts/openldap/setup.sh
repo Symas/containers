@@ -40,7 +40,7 @@ if am_i_root; then
 fi
 
 if ! is_ldap_setup; then
-    # Ensure the OpenLDAP server is initialize
+    # Ensure the OpenLDAP server is initialized
     ldap_initialize
 
     # Allow running custom initialization scripts
