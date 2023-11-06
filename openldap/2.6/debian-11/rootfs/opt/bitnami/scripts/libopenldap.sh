@@ -78,11 +78,12 @@ export LDAP_ENABLE_TLS="${LDAP_ENABLE_TLS:-no}"
 export LDAP_REQUIRE_TLS="${LDAP_REQUIRE_TLS:-no}"
 export LDAP_ULIMIT_NOFILES="${LDAP_ULIMIT_NOFILES:-1024}"
 export LDAP_ALLOW_ANON_BINDING="${LDAP_ALLOW_ANON_BINDING:-yes}"
-export LDAP_LOGLEVEL="${LDAP_LOGLEVEL:-256}"
+export LDAP_LOGLEVEL="${LDAP_LOGLEVEL:-32768}"
 export LDAP_PASSWORD_HASH="${LDAP_PASSWORD_HASH:-{SSHA\}}"
 export LDAP_CONFIGURE_PPOLICY="${LDAP_CONFIGURE_PPOLICY:-no}"
 export LDAP_PPOLICY_USE_LOCKOUT="${LDAP_PPOLICY_USE_LOCKOUT:-no}"
 export LDAP_PPOLICY_HASH_CLEARTEXT="${LDAP_PPOLICY_HASH_CLEARTEXT:-no}"
+export LDAP_ENABLE_LOAD_BALANCER="${LDAP_ENABLE_LOAD_BALANCER:-no}"
 export LDAP_ENABLE_ACCESSLOG="${LDAP_ENABLE_ACCESSLOG:-yes}"
 export LDAP_ACCESSLOG_DB="${LDAP_ACCESSLOG_DB:-cn=accesslog}"
 export LDAP_ACCESSLOG_LOGOPS="${LDAP_ACCESSLOG_LOGOPS:-writes}"
@@ -666,7 +667,6 @@ EOF
 #   None
 #########################
 ldap_add_custom_ldifs() {
-    warn "Ignoring LDAP_USERS, LDAP_PASSWORDS, LDAP_USER_DC and LDAP_GROUP environment variables..."
     info "Loading custom LDIF files..."
     for ldif in $(find "${LDAP_CUSTOM_LDIF_DIR}" -maxdepth 1 \( -type f -o -type l \) -iname '*.ldif' -print | sort); do
         info "\t${ldif}"
@@ -692,19 +692,6 @@ ldap_configure_permissions() {
           chmod -R g+rwX "$path"
           chown -R "$LDAP_DAEMON_USER:$LDAP_DAEMON_GROUP" "$path"
           info "Ensuring ${expected}=$path is $LDAP_DAEMON_USER:$LDAP_DAEMON_GROUP and 0775/drwxrwxr-x/g+rwX recursively"
-      else
-          groups=$(id -nG)
-          whoami="$(id -nu):${groups// /,}"
-          for item in $(find $path \! -type l); do
-              owgr="$(stat -c "%U:%G" "$item")"
-              if [[ "$owgr" != "$LDAP_DAEMON_USER:$LDAP_DAEMON_GROUP" ]]; then
-                  warn "${expected}=$item is $owgr rather than the expected $LDAP_DAEMON_USER:$LDAP_DAEMON_GROUP"
-              fi
-              perms="$(stat "$item" | grep -oP "(?<=Access: \()[^)]*")"
-              if [[ "$perms" =~ 0775/drwxrwxr-x|0755/drwxr-xr-x ]]; then
-                  warn "${expected}=${item} (${owgr}) has permissions $perms process exec'ed by ${whoami}"
-              fi
-          done
       fi
   done
 }
@@ -722,69 +709,83 @@ ldap_initialize() {
     info "Initializing OpenLDAP..."
 
     ldap_configure_permissions
-    if are_dirs_empty "${LDAP_DATA_DIR}" "${LDAP_ONLINE_CONF_DIR}"; then
-        info "Setting up ${LDAP_VOLUME_DIR}/{data,slapd.d} config and data."
-        ensure_dir_exists "${LDAP_ONLINE_CONF_DIR}" ${LDAP_DAEMON_USER} ${LDAP_DAEMON_GROUP}
-        ensure_dir_exists "${LDAP_DATA_DIR}" ${LDAP_DAEMON_USER} ${LDAP_DAEMON_GROUP}
-
-        # Create OpenLDAP online configuration
-        ldap_create_online_configuration
-        ldap_start_bg
-        if is_boolean_yes "$LDAP_SYSLOG_LOG_FORMAT"; then
-            ldap_syslog_log_format
-        fi
-        ldap_admin_credentials
-        info "Setting up optional config..."
-        if ! is_boolean_yes "$LDAP_ALLOW_ANON_BINDING"; then
-            ldap_disable_anon_binding
-        fi
-        if is_boolean_yes "$LDAP_ENABLE_TLS"; then
-            ldap_configure_tls
-        fi
-        # Initialize OpenLDAP with schemas/tree structure
-        if is_boolean_yes "$LDAP_ADD_SCHEMAS"; then
-            ldap_add_schemas
-        fi
-        if [[ -f "$LDAP_CUSTOM_SCHEMA_FILE" ]]; then
-            ldap_add_custom_schema
-        fi
-        if ! is_dir_empty "$LDAP_CUSTOM_SCHEMA_DIR"; then
-            ldap_add_custom_schemas
-        fi
-        # additional configuration
-        if ! [[ "$LDAP_PASSWORD_HASH" == "{SSHA}" ]]; then
-            ldap_configure_password_hash
-        fi
-        if is_boolean_yes "$LDAP_CONFIGURE_PPOLICY"; then
-            ldap_configure_ppolicy
-        fi
-        # enable accesslog overlay
-        if is_boolean_yes "$LDAP_ENABLE_ACCESSLOG"; then
-            ldap_enable_accesslog
-        fi
-        # enable syncprov overlay
-        if is_boolean_yes "$LDAP_ENABLE_SYNCPROV"; then
-            ldap_enable_syncprov
-        fi
-        # enable tls
-        if is_boolean_yes "$LDAP_ENABLE_TLS"; then
-            ldap_configure_tls
-            if is_boolean_yes "$LDAP_REQUIRE_TLS"; then
-                ldap_configure_tls_required
+    if ! are_dirs_empty "${LDAP_DATA_DIR}" "${LDAP_ONLINE_CONF_DIR}"; then
+        info "Preserving existing config and data in..."
+        if is_boolean_yes "${SYMAS_DEBUG}"; then
+            if ! is_dir_empty "${LDAP_DATA_DIR}"; then
+                info "\t${LDAP_DATA_DIR}"
+                find "${LDAP_DATA_DIR}"
+            fi
+            if ! is_dir_empty "${LDAP_ONLINE_CONF_DIR}"; then
+                info "\t${LDAP_ONLINE_CONF_DIR}"
+                find "${LDAP_ONLINE_CONF_DIR}"
             fi
         fi
-        if ! is_dir_empty "$LDAP_CUSTOM_LDIF_DIR"; then
-            ldap_add_custom_ldifs
-        elif ! is_boolean_yes "$LDAP_SKIP_DEFAULT_TREE"; then
-            ldap_create_tree
-        else
-            info "Skipping default schemas/tree structure"
-        fi
-        info "OpenLDAP configuration and databases are now configured for service."
-        ldap_stop; while is_ldap_running; do sleep 1; done
-    else
-        info "Preserving existing config and data in ${LDAP_VOLUME_DIR}/{data,slapd.d}"
+        return 0
     fi
+    info "Setting up ${LDAP_VOLUME_DIR}/{data,slapd.d} config and data."
+    ensure_dir_exists "${LDAP_ONLINE_CONF_DIR}" ${LDAP_DAEMON_USER} ${LDAP_DAEMON_GROUP}
+    ensure_dir_exists "${LDAP_DATA_DIR}" ${LDAP_DAEMON_USER} ${LDAP_DAEMON_GROUP}
+
+    # Create OpenLDAP online configuration
+    ldap_create_online_configuration
+    ldap_start_bg
+    if is_boolean_yes "$LDAP_SYSLOG_LOG_FORMAT"; then
+        ldap_syslog_log_format
+    fi
+    ldap_admin_credentials
+    info "Setting up optional config..."
+    if ! is_boolean_yes "$LDAP_ALLOW_ANON_BINDING"; then
+        ldap_disable_anon_binding
+    fi
+    if is_boolean_yes "$LDAP_ENABLE_TLS"; then
+        ldap_configure_tls
+    fi
+    # Initialize OpenLDAP with schemas/tree structure
+    if is_boolean_yes "$LDAP_ADD_SCHEMAS"; then
+        ldap_add_schemas
+    fi
+    if [[ -f "$LDAP_CUSTOM_SCHEMA_FILE" ]]; then
+        ldap_add_custom_schema
+    fi
+    if ! is_dir_empty "$LDAP_CUSTOM_SCHEMA_DIR"; then
+        ldap_add_custom_schemas
+    fi
+    # additional configuration
+    if ! [[ "$LDAP_PASSWORD_HASH" == "{SSHA}" ]]; then
+        ldap_configure_password_hash
+    fi
+    if is_boolean_yes "$LDAP_CONFIGURE_PPOLICY"; then
+        ldap_configure_ppolicy
+    fi
+    # enable accesslog overlay
+    if is_boolean_yes "$LDAP_ENABLE_ACCESSLOG"; then
+        ldap_enable_accesslog
+    fi
+    # enable load balancer overlay
+    if is_boolean_yes "$LDAP_ENABLE_LOAD_BALANCER"; then
+        ldap_enable_load_balancer
+    fi
+    # enable syncprov overlay
+    if is_boolean_yes "$LDAP_ENABLE_SYNCPROV"; then
+        ldap_enable_syncprov
+    fi
+    # enable tls
+    if is_boolean_yes "$LDAP_ENABLE_TLS"; then
+        ldap_configure_tls
+        if is_boolean_yes "$LDAP_REQUIRE_TLS"; then
+            ldap_configure_tls_required
+        fi
+    fi
+    if ! is_dir_empty "$LDAP_CUSTOM_LDIF_DIR"; then
+        ldap_add_custom_ldifs
+    elif ! is_boolean_yes "$LDAP_SKIP_DEFAULT_TREE"; then
+        ldap_create_tree
+    else
+        info "Skipping default schemas/tree structure"
+    fi
+    info "OpenLDAP configuration and databases are now configured for service."
+    ldap_stop; while is_ldap_running; do sleep 1; done
 }
 
 ########################
@@ -1105,6 +1106,22 @@ olcAccessLogOldAttr: $LDAP_ACCESSLOG_LOGOLDATTR
 EOF
     info "adding accesslog_create_overlay_configuration.ldif"
     ldapadd_ldif "${LDAP_SHARE_DIR}/accesslog_create_overlay_configuration.ldif" -Q -Y EXTERNAL
+}
+
+########################
+# OpenLDAP configure load balancer
+# Globals:
+#   LDAP_*
+# Arguments:
+#   None
+# Returns:
+#   None
+#########################
+ldap_enable_load_balancer() {
+    info "Configure Load Balancer"
+    # Load module
+    ldap_load_module "${LDAP_BASE_DIR}/lib/openldap" "lload.so"
+    # TODO: configure it...
 }
 
 ########################

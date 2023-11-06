@@ -286,7 +286,7 @@ You can configure the containers [logging driver](https://docs.docker.com/engine
 
 There are three environment variables useful when debugging your container's configuration.
 
- * `LDAP_LOGLEVEL` - Default is `256`, setting to `-1` enables all logging
+ * `LDAP_LOGLEVEL` - Default is `32768`, setting to `-1` enables all logging
    output, setting to `0` is the minimum.
  * `SYMAS_DEBUG` - either `yes|no` or `true|false`, when enabled output from
    commands like `slapadd` are not redirected to `/dev/null` during setup.
@@ -352,6 +352,11 @@ are equivalent.
 from setting the log level to 0, when no logging occurs, as it requires at least
 the `None` level to have high priority messages logged.
 * `loglevel stats`: basic stats logging, the default.
+* `loglevel 32768`: this is the default, it allows messages logged at
+  LDAP_DEBUG_ANY to be output, these are usually error messages that require
+  attention of an operator.
+
+
 
 ## Maintenance
 
