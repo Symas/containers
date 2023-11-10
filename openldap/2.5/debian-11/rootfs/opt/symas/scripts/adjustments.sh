@@ -13,15 +13,15 @@ set -o pipefail
 # Their OpenLDAP tree of files is rooted in /opt/bitnami/openldap while Symas
 # packages are in /opt/symas
 mv /opt/symas /opt/bitnami/openldap
-ln -s /opt/bitnami/openldap /opt/symas
+ln -sf /opt/bitnami/openldap /opt/symas
 
 # Sometimes Symas places things into a subdir called "openldap" where Bitnami
 # and others don't.
-ln -s /opt/bitnami/openldap/etc/openldap/schema /opt/bitnami/openldap/etc/schema
+ln -sf /opt/bitnami/openldap/etc/openldap/schema /opt/bitnami/openldap/etc/schema
 
 # We need to setcap on a binary, so hard link it to the expected location.
 ln /opt/bitnami/openldap/lib/slapd /opt/bitnami/openldap/sbin/slapd
 
 # No need to include the following.
 rm -rf /opt/bitnami/openldap/share/{doc,man,symas}
-rm -f /opt/bitnami/openldap/etc/openldap/*.ldif.default
+rm -f /opt/bitnami/openldap/etc/openldap/*.default

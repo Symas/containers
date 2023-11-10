@@ -16,5 +16,4 @@ if [[ "$1" = "/opt/bitnami/scripts/openldap/run.sh" ]]; then
     /opt/bitnami/scripts/openldap/setup.sh
 fi
 
-echo ""
 exec "$@"

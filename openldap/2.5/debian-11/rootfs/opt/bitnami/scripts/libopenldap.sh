@@ -32,7 +32,7 @@ export BASE_DIR="${BASE_DIR:-/opt/bitnami}"
 export LDAP_BASE_DIR="${BASE_DIR}/openldap"
 export LDAP_BIN_DIR="${LDAP_BASE_DIR}/bin"
 export LDAP_SBIN_DIR="${LDAP_BASE_DIR}/sbin"
-export LDAP_CONF_DIR="${LDAP_BASE_DIR}/etc"
+export LDAP_CONF_DIR="${LDAP_CONF_DIR:-${LDAP_BASE_DIR}/etc}"
 export LDAP_SHARE_DIR="${LDAP_BASE_DIR}/share"
 export LDAP_VAR_DIR="${LDAP_BASE_DIR}/var"
 export LDAP_VOLUME_DIR="${LDAP_VOLUME_DIR:-/openldap}"
@@ -41,15 +41,19 @@ export LDAP_BACKEND_DATA_DIR="${LDAP_DATA_DIR}/backend"
 export LDAP_ACCESSLOG_DATA_DIR="${LDAP_DATA_DIR}/accesslog"
 export LDAP_ONLINE_CONF_DIR="${LDAP_VOLUME_DIR}/slapd.d"
 export LDAP_PID_FILE="${LDAP_VAR_DIR}/run/slapd.pid"
+export LDAP_ARGS_FILE="${LDAP_VAR_DIR}/run/slapd.args"
 export LDAP_CUSTOM_LDIF_DIR="${LDAP_CUSTOM_LDIF_DIR:-/ldifs}"
 export LDAP_CUSTOM_SCHEMA_FILE="${LDAP_CUSTOM_SCHEMA_FILE:-/schema/custom.ldif}"
 export LDAP_CUSTOM_SCHEMA_DIR="${LDAP_CUSTOM_SCHEMA_DIR:-/schemas}"
+export LDAP_SYSLOG_LOG_FORMAT="${LDAP_SYSLOG_LOG_FORMAT:-yes}"
 export PATH="${LDAP_BIN_DIR}:${LDAP_SBIN_DIR}:$PATH"
 export LDAP_TLS_CERT_FILE="${LDAP_TLS_CERT_FILE:-}"
 export LDAP_TLS_KEY_FILE="${LDAP_TLS_KEY_FILE:-}"
 export LDAP_TLS_CA_FILE="${LDAP_TLS_CA_FILE:-}"
 export LDAP_TLS_VERIFY_CLIENTS="${LDAP_TLS_VERIFY_CLIENTS:-never}"
 export LDAP_TLS_DH_PARAMS_FILE="${LDAP_TLS_DH_PARAMS_FILE:-}"
+export LDAP_TLS_CIPHER_SUITE="${LDAP_TLS_CIPHER_SUITE:-HIGH:MEDIUM:!ADH}"
+export LDAP_TLS_PROTOCOL_MIN="${LDAP_TLS_PROTOCOL_MIN:-3.1}"
 export LDAP_ENTRYPOINT_INITDB_D_DIR="${LDAP_ENTRYPOINT_INITDB_D_DIR:-/docker-entrypoint-initdb.d}"
 # Users
 export LDAP_DAEMON_USER="slapd"
@@ -77,11 +81,12 @@ export LDAP_ENABLE_TLS="${LDAP_ENABLE_TLS:-no}"
 export LDAP_REQUIRE_TLS="${LDAP_REQUIRE_TLS:-no}"
 export LDAP_ULIMIT_NOFILES="${LDAP_ULIMIT_NOFILES:-1024}"
 export LDAP_ALLOW_ANON_BINDING="${LDAP_ALLOW_ANON_BINDING:-yes}"
-export LDAP_LOGLEVEL="${LDAP_LOGLEVEL:-256}"
+export LDAP_LOGLEVEL="${LDAP_LOGLEVEL:-32768}"
 export LDAP_PASSWORD_HASH="${LDAP_PASSWORD_HASH:-{SSHA\}}"
 export LDAP_CONFIGURE_PPOLICY="${LDAP_CONFIGURE_PPOLICY:-no}"
 export LDAP_PPOLICY_USE_LOCKOUT="${LDAP_PPOLICY_USE_LOCKOUT:-no}"
 export LDAP_PPOLICY_HASH_CLEARTEXT="${LDAP_PPOLICY_HASH_CLEARTEXT:-no}"
+export LDAP_ENABLE_LOAD_BALANCER="${LDAP_ENABLE_LOAD_BALANCER:-no}"
 export LDAP_ENABLE_ACCESSLOG="${LDAP_ENABLE_ACCESSLOG:-yes}"
 export LDAP_ACCESSLOG_DB="${LDAP_ACCESSLOG_DB:-cn=accesslog}"
 export LDAP_ACCESSLOG_LOGOPS="${LDAP_ACCESSLOG_LOGOPS:-writes}"
@@ -259,6 +264,9 @@ ldap_start_bg() {
     local -r sleep_time="${2:-1}"
     local -a flags=("-h" "${LDAP_LDAPI_URI} " "-F" "${LDAP_CONF_DIR}/slapd.d" "-d" "$LDAP_LOGLEVEL")
 
+    if [ $# -eq 3 ]; then
+        flags+=("-f" "$3")
+    fi
     if is_ldap_not_running; then
         info "Starting OpenLDAP server in background"
         ensure_dir_exists $(dirname "$LDAP_PID_FILE") ${LDAP_DAEMON_USER} ${LDAP_DAEMON_GROUP}
@@ -303,7 +311,7 @@ ldap_stop() {
 
     is_ldap_not_running && return
 
-    stop_service_using_pid "$LDAP_PID_FILE"
+    stop_service_using_pid "${LDAP_PID_FILE}"
     if ! retry_while are_db_files_locked "$retries" "$sleep_time"; then
         error "OpenLDAP failed to stop"
         return 1
@@ -330,8 +338,8 @@ ldap_create_slapd_file() {
 dn: cn=config
 objectClass: olcGlobal
 cn: config
-olcArgsFile: ${LDAP_BASE_DIR}/var/run/slapd.args
-olcPidFile: ${LDAP_BASE_DIR}/var/run/slapd.pid
+olcArgsFile: ${LDAP_ARGS_FILE}
+olcPidFile: ${LDAP_PID_FILE}
 
 #
 # Load dynamic backend modules commonly compiled in and available by default:
@@ -411,14 +419,11 @@ EOF
 #########################
 ldap_create_online_configuration() {
     info "Creating LDAP online configuration"
-
     ldap_create_slapd_file
     if ! am_i_root; then
         replace_in_file "${LDAP_SHARE_DIR}/slapd.ldif" "uidNumber=0" "uidNumber=$(id -u)"
         replace_in_file "${LDAP_SHARE_DIR}/slapd.ldif" "gidNumber=0" "gidNumber=$(id -g)"
     fi
-    ensure_dir_exists "${LDAP_BACKEND_DATA_DIR}" ${LDAP_DAEMON_USER} ${LDAP_DAEMON_GROUP}
-    slapadd_ldif "${LDAP_SHARE_DIR}/slapd.ldif"
 }
 
 ########################
@@ -633,7 +638,6 @@ EOF
 #   None
 #########################
 ldap_add_custom_ldifs() {
-    warn "Ignoring LDAP_USERS, LDAP_PASSWORDS, LDAP_USER_DC and LDAP_GROUP environment variables..."
     info "Loading custom LDIF files..."
     for ldif in $(find "${LDAP_CUSTOM_LDIF_DIR}" -maxdepth 1 \( -type f -o -type l \) -iname '*.ldif' -print | sort); do
         info "\t${ldif}"
@@ -654,7 +658,7 @@ ldap_configure_permissions() {
   debug "Ensuring expected directories/files exist..."
   for expected in "${ldap_expected_directories[@]}"; do
       path="$(printenv $expected)"
-      ensure_dir_exists "$path" ${LDAP_DAEMON_USER} ${LDAP_DAEMON_GROUP}
+      ensure_dir_exists "$path"
       if am_i_root; then
           chmod -R g+rwX "$path"
           chown -R "$LDAP_DAEMON_USER:$LDAP_DAEMON_GROUP" "$path"
@@ -689,13 +693,35 @@ ldap_initialize() {
     info "Initializing OpenLDAP..."
 
     ldap_configure_permissions
-    if are_dirs_empty "${LDAP_DATA_DIR}" "${LDAP_ONLINE_CONF_DIR}"; then
-        info "Setting up ${LDAP_VOLUME_DIR}/{data,slapd.d} config and data."
-        ensure_dir_exists "${LDAP_ONLINE_CONF_DIR}" ${LDAP_DAEMON_USER} ${LDAP_DAEMON_GROUP}
-        ensure_dir_exists "${LDAP_DATA_DIR}" ${LDAP_DAEMON_USER} ${LDAP_DAEMON_GROUP}
+    if ! are_dirs_empty "${LDAP_DATA_DIR}" "${LDAP_ONLINE_CONF_DIR}"; then
+        info "Preserving existing config and data in..."
+        if is_boolean_yes "${SYMAS_DEBUG}"; then
+            if ! is_dir_empty "${LDAP_DATA_DIR}"; then
+                info "\t${LDAP_DATA_DIR}"
+                find "${LDAP_DATA_DIR}"
+            fi
+            if ! is_dir_empty "${LDAP_ONLINE_CONF_DIR}"; then
+                info "\t${LDAP_ONLINE_CONF_DIR}"
+                find "${LDAP_ONLINE_CONF_DIR}"
+            fi
+        fi
+        return 0
+    fi
+    info "Setting up ${LDAP_VOLUME_DIR}/{data,slapd.d} config and data."
+    ensure_dir_exists "${LDAP_ONLINE_CONF_DIR}"
+    ensure_dir_exists "${LDAP_DATA_DIR}"
+    ensure_dir_exists "${LDAP_BACKEND_DATA_DIR}"
 
-        # Create OpenLDAP online configuration
+    # Configure OpenLDAP
+    if [ -f "${LDAP_STATIC_CONF_FILE:-}" ]; then
+        # User provided static configuration
+        info "Using provided static configuration in ${LDAP_STATIC_CONF_FILE}"
+        ldap_start_bg 12 1 "${LDAP_STATIC_CONF_FILE}"
+    else
+        # Starting asisted configuration from environment variables, etc.
+        info "Enabled assisted configuration"
         ldap_create_online_configuration
+        slapadd_ldif "${LDAP_SHARE_DIR}/slapd.ldif"
         ldap_start_bg
         ldap_admin_credentials
         info "Setting up optional config..."
@@ -726,6 +752,10 @@ ldap_initialize() {
         if is_boolean_yes "$LDAP_ENABLE_ACCESSLOG"; then
             ldap_enable_accesslog
         fi
+        # enable load balancer overlay
+        if is_boolean_yes "$LDAP_ENABLE_LOAD_BALANCER"; then
+            ldap_enable_load_balancer
+        fi
         # enable syncprov overlay
         if is_boolean_yes "$LDAP_ENABLE_SYNCPROV"; then
             ldap_enable_syncprov
@@ -745,10 +775,8 @@ ldap_initialize() {
             info "Skipping default schemas/tree structure"
         fi
         info "OpenLDAP configuration and databases are now configured for service."
-        ldap_stop; while is_ldap_running; do sleep 1; done
-    else
-        info "Preserving existing config and data in ${LDAP_VOLUME_DIR}/{data,slapd.d}"
     fi
+    ldap_stop; while is_ldap_running; do sleep 1; done
 }
 
 ########################
@@ -848,6 +876,12 @@ olcTLSCertificateFile: $LDAP_TLS_CERT_FILE
 -
 replace: olcTLSCertificateKeyFile
 olcTLSCertificateKeyFile: $LDAP_TLS_KEY_FILE
+-
+replace: olcTLSCipherSuite
+olcTLSCipherSuite: $LDAP_TLS_CIPHER_SUITE
+-
+replace: olcTLSProtocolMin
+olcTLSProtocolMin: $LDAP_TLS_PROTOCOL_MIN
 -
 replace: olcTLSVerifyClient
 olcTLSVerifyClient: $LDAP_TLS_VERIFY_CLIENTS
@@ -1069,6 +1103,22 @@ olcAccessLogOldAttr: $LDAP_ACCESSLOG_LOGOLDATTR
 EOF
     info "adding accesslog_create_overlay_configuration.ldif"
     ldapadd_ldif "${LDAP_SHARE_DIR}/accesslog_create_overlay_configuration.ldif" -Q -Y EXTERNAL
+}
+
+########################
+# OpenLDAP configure load balancer
+# Globals:
+#   LDAP_*
+# Arguments:
+#   None
+# Returns:
+#   None
+#########################
+ldap_enable_load_balancer() {
+    info "Configure Load Balancer"
+    # Load module
+    ldap_load_module "${LDAP_BASE_DIR}/lib/openldap" "lload.so"
+    # TODO: configure it...
 }
 
 ########################

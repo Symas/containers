@@ -32,6 +32,8 @@ fi
 # Add "@" so users can add extra command line flags
 flags+=("-F" "${LDAP_CONF_DIR}/slapd.d" "-d" "$LDAP_LOGLEVEL" "$@")
 
-info "Starting slapd"
+# When the container is running as root switch to the effective user
 am_i_root && flags=("-u" "$LDAP_DAEMON_USER" "${flags[@]}")
+
+info "Starting slapd ${flags[@]}"
 exec "${command}" "${flags[@]}"
