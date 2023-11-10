@@ -70,16 +70,8 @@ RUN echo "deb [signed-by=/usr/share/keyrings/symas-key.asc] https://repo.symas.c
 # Install OpenLDAP, ldap-utils and ssl-tools.
 RUN install_packages symas-openldap-clients symas-openldap-server
 
-# Update zlib1g
-RUN echo "Explanation: Don't use testing by default\nPackage: *\nPin: release a=testing\nPin-Priority: 1\n" > /etc/apt/preferences.d/testing && \
-    echo "deb http://deb.debian.org/debian testing main non-free contrib" >> /etc/apt/sources.list && \
-    DEBIAN_FRONTEND=noninteractive apt update -qq && \
-    apt-get install -t testing zlib1g
-
 # Cleanup the cruft
-RUN apt-get autoremove --purge -y curl file openssl && \
-    apt-get update && apt-get upgrade -y && \
-    apt-get clean && rm -rf /var/lib/apt/lists /var/cache/apt/archives
+RUN apt-get clean && rm -rf /var/lib/apt/lists /var/cache/apt/archives
 RUN chmod g+rwX /opt/bitnami
 
 COPY rootfs /
