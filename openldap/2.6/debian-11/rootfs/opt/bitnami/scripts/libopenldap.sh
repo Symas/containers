@@ -40,10 +40,9 @@ export LDAP_DATA_DIR="${LDAP_VOLUME_DIR}/data"
 export LDAP_BACKEND_DATA_DIR="${LDAP_DATA_DIR}/backend"
 export LDAP_ACCESSLOG_DATA_DIR="${LDAP_DATA_DIR}/accesslog"
 export LDAP_ONLINE_CONF_DIR="${LDAP_VOLUME_DIR}/slapd.d"
-export LDAP_PID_FILE="${LDAP_PID_FILE:-${LDAP_VAR_DIR}/run/slapd.pid}"
-export LDAP_ARGS_FILE="${LDAP_ARGS_FILE:-${LDAP_PID_FILE}/run/slapd.args}"
+export LDAP_PID_FILE="${LDAP_VAR_DIR}/run/slapd.pid"
+export LDAP_ARGS_FILE="${LDAP_VAR_DIR}/run/slapd.args"
 export LDAP_CUSTOM_LDIF_DIR="${LDAP_CUSTOM_LDIF_DIR:-/ldifs}"
-export LDAP_PROVIDED_CONFIG_FILE="${LDAP_PROVIDED_CONFIG_FILE:-${LDAP_SHARE_DIR}/slapd.ldif}"
 export LDAP_CUSTOM_SCHEMA_FILE="${LDAP_CUSTOM_SCHEMA_FILE:-/schema/custom.ldif}"
 export LDAP_CUSTOM_SCHEMA_DIR="${LDAP_CUSTOM_SCHEMA_DIR:-/schemas}"
 export LDAP_SYSLOG_LOG_FORMAT="${LDAP_SYSLOG_LOG_FORMAT:-yes}"
@@ -265,6 +264,9 @@ ldap_start_bg() {
     local -r sleep_time="${2:-1}"
     local -a flags=("-h" "${LDAP_LDAPI_URI} " "-F" "${LDAP_CONF_DIR}/slapd.d" "-d" "$LDAP_LOGLEVEL")
 
+    if [ $# -eq 3 ]; then
+        flags+=("-f" "$3")
+    fi
     if is_ldap_not_running; then
         info "Starting OpenLDAP server in background"
         ensure_dir_exists $(dirname "$LDAP_PID_FILE") ${LDAP_DAEMON_USER} ${LDAP_DAEMON_GROUP}
@@ -688,7 +690,7 @@ ldap_configure_permissions() {
   debug "Ensuring expected directories/files exist..."
   for expected in "${ldap_expected_directories[@]}"; do
       path="$(printenv $expected)"
-      ensure_dir_exists "$path" ${LDAP_DAEMON_USER} ${LDAP_DAEMON_GROUP}
+      ensure_dir_exists "$path"
       if am_i_root; then
           chmod -R g+rwX "$path"
           chown -R "$LDAP_DAEMON_USER:$LDAP_DAEMON_GROUP" "$path"
@@ -725,16 +727,17 @@ ldap_initialize() {
         return 0
     fi
     info "Setting up ${LDAP_VOLUME_DIR}/{data,slapd.d} config and data."
-    ensure_dir_exists "${LDAP_ONLINE_CONF_DIR}" ${LDAP_DAEMON_USER} ${LDAP_DAEMON_GROUP}
-    ensure_dir_exists "${LDAP_DATA_DIR}" ${LDAP_DAEMON_USER} ${LDAP_DAEMON_GROUP}
-    ensure_dir_exists "${LDAP_BACKEND_DATA_DIR}" ${LDAP_DAEMON_USER} ${LDAP_DAEMON_GROUP}
+    ensure_dir_exists "${LDAP_ONLINE_CONF_DIR}"
+    ensure_dir_exists "${LDAP_DATA_DIR}"
+    ensure_dir_exists "${LDAP_BACKEND_DATA_DIR}"
 
     # Configure OpenLDAP
-    if [ -f "${LDAP_PROVIDED_CONFIG_FILE}" ]; then
-        # Provided configuration
-        info "Using provided configuration: ${LDAP_PROVIDED_CONFIG_FILE}"
+    if [ -f "${LDAP_STATIC_CONF_FILE:-}" ]; then
+        # User provided static configuration
+        info "Using provided static configuration in ${LDAP_STATIC_CONF_FILE}"
+        ldap_start_bg 12 1 "${LDAP_STATIC_CONF_FILE}"
     else
-        # Assisted configuration
+        # Starting asisted configuration from environment variables, etc.
         info "Enabled assisted configuration"
         ldap_create_online_configuration
         slapadd_ldif "${LDAP_SHARE_DIR}/slapd.ldif"
@@ -795,8 +798,8 @@ ldap_initialize() {
             info "Skipping default schemas/tree structure"
         fi
         info "OpenLDAP configuration and databases are now configured for service."
-        ldap_stop; while is_ldap_running; do sleep 1; done
     fi
+    ldap_stop; while is_ldap_running; do sleep 1; done
 }
 
 ########################
@@ -897,11 +900,11 @@ olcTLSCertificateFile: $LDAP_TLS_CERT_FILE
 replace: olcTLSCertificateKeyFile
 olcTLSCertificateKeyFile: $LDAP_TLS_KEY_FILE
 -
-replace: TLSCipherSuite
-TLSCipherSuite: $LDAP_TLS_CIPHER_SUITE
+replace: olcTLSCipherSuite
+olcTLSCipherSuite: $LDAP_TLS_CIPHER_SUITE
 -
-replace: TLSProtocolMin
-TLSProtocolMin: $LDAP_TLS_PROTOCOL_MIN
+replace: olcTLSProtocolMin
+olcTLSProtocolMin: $LDAP_TLS_PROTOCOL_MIN
 -
 replace: olcTLSVerifyClient
 olcTLSVerifyClient: $LDAP_TLS_VERIFY_CLIENTS
