@@ -32,7 +32,7 @@ export BASE_DIR="${BASE_DIR:-/opt/bitnami}"
 export LDAP_BASE_DIR="${BASE_DIR}/openldap"
 export LDAP_BIN_DIR="${LDAP_BASE_DIR}/bin"
 export LDAP_SBIN_DIR="${LDAP_BASE_DIR}/sbin"
-export LDAP_CONF_DIR="${LDAP_BASE_DIR}/etc"
+export LDAP_CONF_DIR="${LDAP_CONF_DIR:-${LDAP_BASE_DIR}/etc}"
 export LDAP_SHARE_DIR="${LDAP_BASE_DIR}/share"
 export LDAP_VAR_DIR="${LDAP_BASE_DIR}/var"
 export LDAP_VOLUME_DIR="${LDAP_VOLUME_DIR:-/openldap}"
@@ -40,8 +40,10 @@ export LDAP_DATA_DIR="${LDAP_VOLUME_DIR}/data"
 export LDAP_BACKEND_DATA_DIR="${LDAP_DATA_DIR}/backend"
 export LDAP_ACCESSLOG_DATA_DIR="${LDAP_DATA_DIR}/accesslog"
 export LDAP_ONLINE_CONF_DIR="${LDAP_VOLUME_DIR}/slapd.d"
-export LDAP_PID_FILE="${LDAP_VAR_DIR}/run/slapd.pid"
+export LDAP_PID_FILE="${LDAP_PID_FILE:-${LDAP_VAR_DIR}/run/slapd.pid}"
+export LDAP_ARGS_FILE="${LDAP_ARGS_FILE:-${LDAP_PID_FILE}/run/slapd.args}"
 export LDAP_CUSTOM_LDIF_DIR="${LDAP_CUSTOM_LDIF_DIR:-/ldifs}"
+export LDAP_PROVIDED_CONFIG_FILE="${LDAP_PROVIDED_CONFIG_FILE:-${LDAP_SHARE_DIR}/slapd.ldif}"
 export LDAP_CUSTOM_SCHEMA_FILE="${LDAP_CUSTOM_SCHEMA_FILE:-/schema/custom.ldif}"
 export LDAP_CUSTOM_SCHEMA_DIR="${LDAP_CUSTOM_SCHEMA_DIR:-/schemas}"
 export LDAP_SYSLOG_LOG_FORMAT="${LDAP_SYSLOG_LOG_FORMAT:-yes}"
@@ -51,6 +53,8 @@ export LDAP_TLS_KEY_FILE="${LDAP_TLS_KEY_FILE:-}"
 export LDAP_TLS_CA_FILE="${LDAP_TLS_CA_FILE:-}"
 export LDAP_TLS_VERIFY_CLIENTS="${LDAP_TLS_VERIFY_CLIENTS:-never}"
 export LDAP_TLS_DH_PARAMS_FILE="${LDAP_TLS_DH_PARAMS_FILE:-}"
+export LDAP_TLS_CIPHER_SUITE="${LDAP_TLS_CIPHER_SUITE:-HIGH:MEDIUM:!ADH}"
+export LDAP_TLS_PROTOCOL_MIN="${LDAP_TLS_PROTOCOL_MIN:-3.1}"
 export LDAP_ENTRYPOINT_INITDB_D_DIR="${LDAP_ENTRYPOINT_INITDB_D_DIR:-/docker-entrypoint-initdb.d}"
 # Users
 export LDAP_DAEMON_USER="slapd"
@@ -305,7 +309,7 @@ ldap_stop() {
 
     is_ldap_not_running && return
 
-    stop_service_using_pid "$LDAP_PID_FILE"
+    stop_service_using_pid "${LDAP_PID_FILE}"
     if ! retry_while are_db_files_locked "$retries" "$sleep_time"; then
         error "OpenLDAP failed to stop"
         return 1
@@ -332,8 +336,8 @@ ldap_create_slapd_file() {
 dn: cn=config
 objectClass: olcGlobal
 cn: config
-olcArgsFile: ${LDAP_BASE_DIR}/var/run/slapd.args
-olcPidFile: ${LDAP_BASE_DIR}/var/run/slapd.pid
+olcArgsFile: ${LDAP_ARGS_FILE}
+olcPidFile: ${LDAP_PID_FILE}
 
 #
 # Load dynamic backend modules commonly compiled in and available by default:
@@ -413,14 +417,11 @@ EOF
 #########################
 ldap_create_online_configuration() {
     info "Creating LDAP online configuration"
-
     ldap_create_slapd_file
     if ! am_i_root; then
         replace_in_file "${LDAP_SHARE_DIR}/slapd.ldif" "uidNumber=0" "uidNumber=$(id -u)"
         replace_in_file "${LDAP_SHARE_DIR}/slapd.ldif" "gidNumber=0" "gidNumber=$(id -g)"
     fi
-    ensure_dir_exists "${LDAP_BACKEND_DATA_DIR}" ${LDAP_DAEMON_USER} ${LDAP_DAEMON_GROUP}
-    slapadd_ldif "${LDAP_SHARE_DIR}/slapd.ldif"
 }
 
 ########################
@@ -726,66 +727,76 @@ ldap_initialize() {
     info "Setting up ${LDAP_VOLUME_DIR}/{data,slapd.d} config and data."
     ensure_dir_exists "${LDAP_ONLINE_CONF_DIR}" ${LDAP_DAEMON_USER} ${LDAP_DAEMON_GROUP}
     ensure_dir_exists "${LDAP_DATA_DIR}" ${LDAP_DAEMON_USER} ${LDAP_DAEMON_GROUP}
+    ensure_dir_exists "${LDAP_BACKEND_DATA_DIR}" ${LDAP_DAEMON_USER} ${LDAP_DAEMON_GROUP}
 
-    # Create OpenLDAP online configuration
-    ldap_create_online_configuration
-    ldap_start_bg
-    if is_boolean_yes "$LDAP_SYSLOG_LOG_FORMAT"; then
-        ldap_syslog_log_format
-    fi
-    ldap_admin_credentials
-    info "Setting up optional config..."
-    if ! is_boolean_yes "$LDAP_ALLOW_ANON_BINDING"; then
-        ldap_disable_anon_binding
-    fi
-    if is_boolean_yes "$LDAP_ENABLE_TLS"; then
-        ldap_configure_tls
-    fi
-    # Initialize OpenLDAP with schemas/tree structure
-    if is_boolean_yes "$LDAP_ADD_SCHEMAS"; then
-        ldap_add_schemas
-    fi
-    if [[ -f "$LDAP_CUSTOM_SCHEMA_FILE" ]]; then
-        ldap_add_custom_schema
-    fi
-    if ! is_dir_empty "$LDAP_CUSTOM_SCHEMA_DIR"; then
-        ldap_add_custom_schemas
-    fi
-    # additional configuration
-    if ! [[ "$LDAP_PASSWORD_HASH" == "{SSHA}" ]]; then
-        ldap_configure_password_hash
-    fi
-    if is_boolean_yes "$LDAP_CONFIGURE_PPOLICY"; then
-        ldap_configure_ppolicy
-    fi
-    # enable accesslog overlay
-    if is_boolean_yes "$LDAP_ENABLE_ACCESSLOG"; then
-        ldap_enable_accesslog
-    fi
-    # enable load balancer overlay
-    if is_boolean_yes "$LDAP_ENABLE_LOAD_BALANCER"; then
-        ldap_enable_load_balancer
-    fi
-    # enable syncprov overlay
-    if is_boolean_yes "$LDAP_ENABLE_SYNCPROV"; then
-        ldap_enable_syncprov
-    fi
-    # enable tls
-    if is_boolean_yes "$LDAP_ENABLE_TLS"; then
-        ldap_configure_tls
-        if is_boolean_yes "$LDAP_REQUIRE_TLS"; then
-            ldap_configure_tls_required
-        fi
-    fi
-    if ! is_dir_empty "$LDAP_CUSTOM_LDIF_DIR"; then
-        ldap_add_custom_ldifs
-    elif ! is_boolean_yes "$LDAP_SKIP_DEFAULT_TREE"; then
-        ldap_create_tree
+    # Configure OpenLDAP
+    if [ -f "${LDAP_PROVIDED_CONFIG_FILE}" ]; then
+        # Provided configuration
+        info "Using provided configuration: ${LDAP_PROVIDED_CONFIG_FILE}"
     else
-        info "Skipping default schemas/tree structure"
+        # Assisted configuration
+        info "Enabled assisted configuration"
+        ldap_create_online_configuration
+        slapadd_ldif "${LDAP_SHARE_DIR}/slapd.ldif"
+        ldap_start_bg
+
+        if is_boolean_yes "$LDAP_SYSLOG_LOG_FORMAT"; then
+            ldap_syslog_log_format
+        fi
+        ldap_admin_credentials
+        info "Setting up optional config..."
+        if ! is_boolean_yes "$LDAP_ALLOW_ANON_BINDING"; then
+            ldap_disable_anon_binding
+        fi
+        if is_boolean_yes "$LDAP_ENABLE_TLS"; then
+            ldap_configure_tls
+        fi
+        # Initialize OpenLDAP with schemas/tree structure
+        if is_boolean_yes "$LDAP_ADD_SCHEMAS"; then
+            ldap_add_schemas
+        fi
+        if [[ -f "$LDAP_CUSTOM_SCHEMA_FILE" ]]; then
+            ldap_add_custom_schema
+        fi
+        if ! is_dir_empty "$LDAP_CUSTOM_SCHEMA_DIR"; then
+            ldap_add_custom_schemas
+        fi
+        # additional configuration
+        if ! [[ "$LDAP_PASSWORD_HASH" == "{SSHA}" ]]; then
+            ldap_configure_password_hash
+        fi
+        if is_boolean_yes "$LDAP_CONFIGURE_PPOLICY"; then
+            ldap_configure_ppolicy
+        fi
+        # enable accesslog overlay
+        if is_boolean_yes "$LDAP_ENABLE_ACCESSLOG"; then
+            ldap_enable_accesslog
+        fi
+        # enable load balancer overlay
+        if is_boolean_yes "$LDAP_ENABLE_LOAD_BALANCER"; then
+            ldap_enable_load_balancer
+        fi
+        # enable syncprov overlay
+        if is_boolean_yes "$LDAP_ENABLE_SYNCPROV"; then
+            ldap_enable_syncprov
+        fi
+        # enable tls
+        if is_boolean_yes "$LDAP_ENABLE_TLS"; then
+            ldap_configure_tls
+            if is_boolean_yes "$LDAP_REQUIRE_TLS"; then
+                ldap_configure_tls_required
+            fi
+        fi
+        if ! is_dir_empty "$LDAP_CUSTOM_LDIF_DIR"; then
+            ldap_add_custom_ldifs
+        elif ! is_boolean_yes "$LDAP_SKIP_DEFAULT_TREE"; then
+            ldap_create_tree
+        else
+            info "Skipping default schemas/tree structure"
+        fi
+        info "OpenLDAP configuration and databases are now configured for service."
+        ldap_stop; while is_ldap_running; do sleep 1; done
     fi
-    info "OpenLDAP configuration and databases are now configured for service."
-    ldap_stop; while is_ldap_running; do sleep 1; done
 }
 
 ########################
@@ -885,6 +896,12 @@ olcTLSCertificateFile: $LDAP_TLS_CERT_FILE
 -
 replace: olcTLSCertificateKeyFile
 olcTLSCertificateKeyFile: $LDAP_TLS_KEY_FILE
+-
+replace: TLSCipherSuite
+TLSCipherSuite: $LDAP_TLS_CIPHER_SUITE
+-
+replace: TLSProtocolMin
+TLSProtocolMin: $LDAP_TLS_PROTOCOL_MIN
 -
 replace: olcTLSVerifyClient
 olcTLSVerifyClient: $LDAP_TLS_VERIFY_CLIENTS
