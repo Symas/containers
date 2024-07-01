@@ -182,10 +182,15 @@ The Symas Docker OpenLDAP can be easily setup with the following environment var
 * `LDAP_ULIMIT_NOFILES`: Maximum number of open file descriptors. Default: **1024**.
 * `LDAP_ALLOW_ANON_BINDING`: Allow anonymous bindings to the LDAP server. Default: **yes**.
 * `LDAP_LOGLEVEL`: Set the loglevel for the OpenLDAP server (see <https://www.openldap.org/doc/admin26/slapdconfig.html> for possible values). Default: **256**.
-* `LDAP_PASSWORD_HASH`: Hash to be used in generation of user passwords. Must be one of {SSHA}, {SHA}, {SMD5}, {MD5}, {CRYPT}, and {CLEARTEXT}. Default: **{SSHA}**.
+* `LDAP_PASSWORD_HASH`: Algorithm to use when hashing passwords. Must be one of `{ARGON2}`, `{SSHA}`, `{SHA}`, `{SMD5}`, `{MD5}`, `{CRYPT}`, and `{CLEARTEXT}`. Default: **`{SSHA}`**.
+* `LDAP_ARGON2_MODULE_LOAD_ARGUMENTS`: Used to provide configuation to on module
+  load of the ARGON2 password hasing library.  Example: `m=32768` to specify the
+  `m` parameter for the argon2 module at load time.  See the [man
+  page](https://openldap.org/software/man.cgi?query=slappw-argon2) for more
+  information.
 * `LDAP_CONFIGURE_PPOLICY`: Enables the ppolicy module and creates an empty configuration. Default: **no**.
 * `LDAP_PPOLICY_USE_LOCKOUT`: Whether bind attempts to locked accounts will always return an error. Will only be applied with `LDAP_CONFIGURE_PPOLICY` active. Default: **no**.
-* `LDAP_PPOLICY_HASH_CLEARTEXT`: Whether plaintext passwords should be hashed automatically. Will only be applied with `LDAP_CONFIGURE_PPOLICY` active. Default: **no**.
+* `LDAP_PPOLICY_HASH_CLEARTEXT`: How to treat plaintext passwords, store them as is or hash them automatically. Only relivent when `LDAP_CONFIGURE_PPOLICY` is active. Default: **no**.
 
 You can bootstrap the contents of your database by putting LDIF files in the directory `/ldifs` (or the one you define in `LDAP_CUSTOM_LDIF_DIR`). Those may only contain content underneath your base DN (set by `LDAP_ROOT`). You can **not** set configuration for e.g. `cn=config` in those files.
 
