@@ -1,11 +1,9 @@
 # Copyright VMware, Inc.
 # SPDX-License-Identifier: APACHE-2.0
 
-version: '2'
-
 services:
   openldap:
-    image: docker.io/symas/openldap:early-access
+    image: docker.io/symas/openldap:latest
     ports:
       - '1389:1389'
       - '1636:1636'
